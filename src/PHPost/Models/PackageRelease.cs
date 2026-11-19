@@ -2,9 +2,17 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PHPost.Models;
 
+public enum PackageInstallMethod
+{
+    ArchiveDownload,
+    HomebrewFormula
+}
+
 public partial class PackageRelease : ObservableObject
 {
     public ServiceKind Kind { get; init; }
+    public PackageInstallMethod InstallMethod { get; init; } = PackageInstallMethod.ArchiveDownload;
+    public string? FormulaName { get; init; }
     public string Version { get; init; } = string.Empty;
     public string Series { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;

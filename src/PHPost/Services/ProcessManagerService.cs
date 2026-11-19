@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using PHPost.Models;
 
 namespace PHPost.Services;
@@ -45,10 +46,10 @@ public sealed class ProcessManagerService : IDisposable
             }
 
             var phpDir = settings.GetPhpInstallDirectory(settings.ActivePhpVersion);
-            var phpExe = Path.Combine(phpDir, "php.exe");
-            if (!File.Exists(phpExe))
+            var phpExe = InstallerService.FindPhpExecutable(phpDir);
+            if (phpExe is null)
             {
-                _log.Error("PHP", $"Executável não encontrado em {phpExe}.");
+                _log.Error("PHP", $"Executável do PHP não encontrado em {phpDir}.");
                 StateChanged?.Invoke(ServiceKind.Php, ServiceState.NotInstalled, null);
                 return false;
             }
@@ -64,19 +65,27 @@ public sealed class ProcessManagerService : IDisposable
             StateChanged?.Invoke(ServiceKind.Php, ServiceState.Starting, null);
 
             var iniPath = Path.Combine(phpDir, "php.ini");
-            var iniArg = File.Exists(iniPath) ? $"-c \"{iniPath}\" " : "";
-            var args = $"{iniArg}-S {settings.PhpHost}:{settings.PhpPort} -t \"{settings.ProjectsDirectory}\"";
-
             var psi = new ProcessStartInfo
             {
                 FileName = phpExe,
-                Arguments = args,
                 WorkingDirectory = settings.ProjectsDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            if (File.Exists(iniPath))
+            {
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add(iniPath);
+            }
+            psi.ArgumentList.Add("-S");
+            psi.ArgumentList.Add($"{settings.PhpHost}:{settings.PhpPort}");
+            psi.ArgumentList.Add("-t");
+            psi.ArgumentList.Add(settings.ProjectsDirectory);
 
             var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             process.OutputDataReceived += (_, e) =>
@@ -99,7 +108,7 @@ public sealed class ProcessManagerService : IDisposable
             process.Exited += (_, _) =>
             {
                 var exitCode = SafeGetExitCode(process);
-                if (exitCode == -1073741515)
+                if (PlatformHelper.IsWindows && exitCode == -1073741515)
                 {
                     _log.Error("PHP", "PHP encerrou com erro 0xC0000135 (DLL ausente). Instale o Microsoft Visual C++ Redistributable x64.");
                 }
@@ -117,7 +126,7 @@ public sealed class ProcessManagerService : IDisposable
 
             if (!process.Start())
             {
-                _log.Error("PHP", "Falha ao iniciar o processo php.exe.");
+                _log.Error("PHP", "Falha ao iniciar o processo do PHP.");
                 StateChanged?.Invoke(ServiceKind.Php, ServiceState.Error, null);
                 return false;
             }
@@ -170,7 +179,8 @@ public sealed class ProcessManagerService : IDisposable
                 if (!proc.HasExited)
                 {
                     proc.Kill(entireProcessTree: true);
-                    await proc.WaitForExitAsync(new CancellationTokenSource(3000).Token);
+                    using var cts = new CancellationTokenSource(3000);
+                    await proc.WaitForExitAsync(cts.Token);
                 }
             }
             catch (Exception ex)
@@ -210,7 +220,7 @@ public sealed class ProcessManagerService : IDisposable
             var serverExe = InstallerService.FindMariaDbServerExecutable(mariaDir);
             if (serverExe is null)
             {
-                _log.Error("MariaDB", $"Executável mariadbd.exe/mysqld.exe não encontrado em {mariaDir}.");
+                _log.Error("MariaDB", $"Executável mariadbd/mysqld não encontrado em {mariaDir}.");
                 StateChanged?.Invoke(ServiceKind.MariaDb, ServiceState.NotInstalled, null);
                 return false;
             }
@@ -224,22 +234,32 @@ public sealed class ProcessManagerService : IDisposable
 
             StateChanged?.Invoke(ServiceKind.MariaDb, ServiceState.Starting, null);
 
-            // Ensure data dir and my.ini are initialized and synced with current port
+            // Ensure data dir and my.ini/my.cnf are initialized and synced (without UTF-8 BOM)
             await _installer.EnsureMariaDbInitializedAsync(mariaDir, settings);
 
-            var myIni = Path.Combine(settings.MariaDbDataDirectory, "my.ini");
-            var args = $"--defaults-file=\"{myIni}\" --port={settings.MariaDbPort} --console";
-
+            var configPath = PlatformHelper.ResolveMariaDbConfigPath(settings.MariaDbDataDirectory);
             var psi = new ProcessStartInfo
             {
                 FileName = serverExe,
-                Arguments = args,
                 WorkingDirectory = Path.GetDirectoryName(serverExe)!,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            psi.ArgumentList.Add($"--defaults-file={configPath}");
+            psi.ArgumentList.Add($"--port={settings.MariaDbPort}");
+            if (PlatformHelper.IsWindows)
+            {
+                psi.ArgumentList.Add("--console");
+            }
+            else
+            {
+                psi.ArgumentList.Add($"--socket={settings.MariaDbSocketPath}");
+            }
 
             var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             process.OutputDataReceived += (_, e) =>
@@ -251,7 +271,8 @@ public sealed class ProcessManagerService : IDisposable
             {
                 if (!string.IsNullOrWhiteSpace(e.Data))
                 {
-                    var level = e.Data.Contains("[ERROR]", StringComparison.OrdinalIgnoreCase)
+                    var level = e.Data.Contains("[ERROR]", StringComparison.OrdinalIgnoreCase) ||
+                                e.Data.Contains("Fatal error", StringComparison.OrdinalIgnoreCase)
                         ? LogLevel.Error
                         : e.Data.Contains("[Warning]", StringComparison.OrdinalIgnoreCase)
                             ? LogLevel.Warning
@@ -262,7 +283,7 @@ public sealed class ProcessManagerService : IDisposable
             process.Exited += (_, _) =>
             {
                 var exitCode = SafeGetExitCode(process);
-                if (exitCode == -1073741515)
+                if (PlatformHelper.IsWindows && exitCode == -1073741515)
                 {
                     _log.Error("MariaDB", "MariaDB encerrou com erro 0xC0000135 (DLL ausente). Instale o Microsoft Visual C++ Redistributable x64.");
                 }
@@ -280,7 +301,7 @@ public sealed class ProcessManagerService : IDisposable
 
             if (!process.Start())
             {
-                _log.Error("MariaDB", "Falha ao iniciar o processo mariadbd.exe.");
+                _log.Error("MariaDB", "Falha ao iniciar o processo mariadbd.");
                 StateChanged?.Invoke(ServiceKind.MariaDb, ServiceState.Error, null);
                 return false;
             }
@@ -289,8 +310,8 @@ public sealed class ProcessManagerService : IDisposable
             process.BeginErrorReadLine();
             _mariaDbProcess = process;
 
-            // Wait up to 6 seconds for MariaDB port to start listening
-            var ready = await WaitForPortListeningAsync("127.0.0.1", settings.MariaDbPort, process, TimeSpan.FromSeconds(6));
+            // Wait up to 8 seconds for MariaDB port to start listening
+            var ready = await WaitForPortListeningAsync("127.0.0.1", settings.MariaDbPort, process, TimeSpan.FromSeconds(8));
 
             if (process.HasExited)
             {
@@ -349,13 +370,20 @@ public sealed class ProcessManagerService : IDisposable
                         var psi = new ProcessStartInfo
                         {
                             FileName = adminExe,
-                            Arguments = $"--host=127.0.0.1 --port={settings.MariaDbPort} --protocol=TCP -u root shutdown",
                             WorkingDirectory = Path.GetDirectoryName(adminExe)!,
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardError = true,
-                            RedirectStandardOutput = true
+                            RedirectStandardOutput = true,
+                            StandardOutputEncoding = Encoding.UTF8,
+                            StandardErrorEncoding = Encoding.UTF8
                         };
+                        psi.ArgumentList.Add("--host=127.0.0.1");
+                        psi.ArgumentList.Add($"--port={settings.MariaDbPort}");
+                        psi.ArgumentList.Add("--protocol=TCP");
+                        psi.ArgumentList.Add("-u");
+                        psi.ArgumentList.Add("root");
+                        psi.ArgumentList.Add("shutdown");
 
                         using var adminProc = Process.Start(psi);
                         if (adminProc is not null)

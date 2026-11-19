@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json.Serialization;
+using PHPost.Services;
 
 namespace PHPost.Models;
 
@@ -29,6 +30,9 @@ public sealed class AppSettings
     public string MariaDbDataDirectory => Path.Combine(BaseDirectory, "data", "mariadb");
 
     [JsonIgnore]
+    public string MariaDbSocketPath => Path.Combine(MariaDbDataDirectory, "mariadb.sock");
+
+    [JsonIgnore]
     public string DownloadsDirectory => Path.Combine(BaseDirectory, "downloads");
 
     public string GetPhpInstallDirectory(string version) =>
@@ -37,14 +41,8 @@ public sealed class AppSettings
     public string GetMariaDbInstallDirectory(string version) =>
         Path.Combine(MariaDbRuntimesDirectory, SanitizeFolderName(version));
 
-    public static string GetDefaultBaseDirectory()
-    {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localAppData))
-            localAppData = AppContext.BaseDirectory;
-
-        return Path.Combine(localAppData, "PHPost");
-    }
+    public static string GetDefaultBaseDirectory() =>
+        PlatformHelper.GetDefaultBaseDirectory();
 
     public static string SanitizeFolderName(string raw)
     {

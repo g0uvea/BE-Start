@@ -1,14 +1,18 @@
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using PHPost.Models;
 
 namespace PHPost.Services;
 
 public sealed class PackageCatalogService
 {
-    private const string PhpReleasesUrl = "https://windows.php.net/downloads/releases/releases.json";
-    private const string PhpDownloadBase = "https://windows.php.net/downloads/releases/";
+    private const string WindowsPhpReleasesUrl = "https://windows.php.net/downloads/releases/releases.json";
+    private const string WindowsPhpDownloadBase = "https://windows.php.net/downloads/releases/";
+    private const string StaticPhpBulkApiUrl = "https://dl.static-php.dev/static-php-cli/bulk/?format=json";
+    private const string StaticPhpBaseUrl = "https://dl.static-php.dev";
     private const string MariaDbApiBase = "https://downloads.mariadb.org/rest-api/mariadb/";
+    private const string HomebrewFormulaApiBase = "https://formulae.brew.sh/api/formula/";
 
     private readonly HttpClient _http;
     private readonly LogService _log;
@@ -19,13 +23,33 @@ public sealed class PackageCatalogService
         _log = log;
     }
 
-    public async Task<IReadOnlyList<PackageRelease>> FetchPhpReleasesAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<PackageRelease>> FetchPhpReleasesAsync(CancellationToken ct = default)
+    {
+        if (PlatformHelper.IsWindows)
+            return FetchWindowsPhpReleasesAsync(ct);
+
+        return FetchUnixStaticPhpReleasesAsync(ct);
+    }
+
+    public Task<IReadOnlyList<PackageRelease>> FetchMariaDbReleasesAsync(CancellationToken ct = default)
+    {
+        if (PlatformHelper.IsWindows)
+            return FetchOfficialMariaDbArchiveReleasesAsync("Windows", "x86_64", "ZIP file", "ZIP x64", "Portátil ZIP", ct);
+
+        if (PlatformHelper.IsLinux && !PlatformHelper.IsArm64)
+            return FetchOfficialMariaDbArchiveReleasesAsync("Linux", "x86_64", "gzipped tar file", "TAR.GZ x64", "Portátil TAR.GZ", ct);
+
+        // macOS (Apple Silicon / Intel) and Linux ARM64 use Homebrew formulae (official MariaDB recommendation on macOS)
+        return FetchHomebrewMariaDbReleasesAsync(ct);
+    }
+
+    private async Task<IReadOnlyList<PackageRelease>> FetchWindowsPhpReleasesAsync(CancellationToken ct)
     {
         var results = new List<PackageRelease>();
 
         try
         {
-            using var response = await _http.GetAsync(PhpReleasesUrl, ct);
+            using var response = await _http.GetAsync(WindowsPhpReleasesUrl, ct);
             response.EnsureSuccessStatusCode();
 
             await using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -91,11 +115,12 @@ public sealed class PackageCatalogService
                 results.Add(new PackageRelease
                 {
                     Kind = ServiceKind.Php,
+                    InstallMethod = PackageInstallMethod.ArchiveDownload,
                     Version = version,
                     Series = series,
                     DisplayName = $"PHP {version}",
                     Subtitle = $"Windows x64 ({chosenVariant.Value.Name}) • Oficial windows.php.net",
-                    DownloadUrl = PhpDownloadBase + fileName,
+                    DownloadUrl = WindowsPhpDownloadBase + fileName,
                     FileName = fileName,
                     SizeLabel = sizeLabel,
                     Sha256 = sha256,
@@ -113,7 +138,103 @@ public sealed class PackageCatalogService
         return results;
     }
 
-    public async Task<IReadOnlyList<PackageRelease>> FetchMariaDbReleasesAsync(CancellationToken ct = default)
+    private async Task<IReadOnlyList<PackageRelease>> FetchUnixStaticPhpReleasesAsync(CancellationToken ct)
+    {
+        var results = new List<PackageRelease>();
+
+        try
+        {
+            var osToken = PlatformHelper.IsMacOS ? "macos" : "linux";
+            var archToken = PlatformHelper.IsArm64 ? "aarch64" : "x86_64";
+            var regex = new Regex(
+                $@"^php-(\d+\.\d+\.\d+)-cli-{osToken}-{archToken}\.tar\.gz$",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            using var response = await _http.GetAsync(StaticPhpBulkApiUrl, ct);
+            response.EnsureSuccessStatusCode();
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return results;
+
+            // Keep the newest patch release for each major.minor series (e.g. 8.5, 8.4, 8.3, 8.2, 8.1)
+            var latestPerSeries = new Dictionary<string, (Version Parsed, string Version, string FileName, string FullPath, string Size)>();
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (item.TryGetProperty("is_dir", out var isDirProp) && isDirProp.ValueKind == JsonValueKind.True)
+                    continue;
+
+                var name = item.TryGetProperty("name", out var nProp) ? nProp.GetString() : null;
+                var fullPath = item.TryGetProperty("full_path", out var fpProp) ? fpProp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(fullPath))
+                    continue;
+
+                var match = regex.Match(name);
+                if (!match.Success)
+                    continue;
+
+                var verText = match.Groups[1].Value;
+                if (!Version.TryParse(verText, out var parsed))
+                    continue;
+
+                var series = $"{parsed.Major}.{parsed.Minor}";
+                var size = item.TryGetProperty("size", out var szProp) ? szProp.GetString() ?? "" : "";
+
+                if (!latestPerSeries.TryGetValue(series, out var existing) || parsed > existing.Parsed)
+                {
+                    latestPerSeries[series] = (parsed, verText, name, fullPath, size);
+                }
+            }
+
+            var ordered = latestPerSeries
+                .OrderByDescending(kv => kv.Value.Parsed)
+                .Take(6)
+                .ToList();
+
+            var platformLabel = $"{PlatformHelper.PlatformDisplayName} {PlatformHelper.ArchitectureDisplayName}";
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var (series, info) = ordered[i];
+                var url = info.FullPath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? info.FullPath
+                    : StaticPhpBaseUrl + info.FullPath;
+
+                results.Add(new PackageRelease
+                {
+                    Kind = ServiceKind.Php,
+                    InstallMethod = PackageInstallMethod.ArchiveDownload,
+                    Version = info.Version,
+                    Series = series,
+                    DisplayName = $"PHP {info.Version}",
+                    Subtitle = $"{platformLabel} (Static CLI completo: pdo_mysql, mysqli, gd, intl, zip) • dl.static-php.dev",
+                    DownloadUrl = url,
+                    FileName = info.FileName,
+                    SizeLabel = string.IsNullOrWhiteSpace(info.Size) ? "TAR.GZ" : $"{info.Size} • TAR.GZ",
+                    Sha256 = null,
+                    IsRecommended = i == 0
+                });
+            }
+
+            _log.Info("PHPost", $"Catálogo PHP ({platformLabel}) atualizado: {results.Count} versões encontradas.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error("PHPost", $"Falha ao consultar versões do PHP: {ex.Message}");
+        }
+
+        return results;
+    }
+
+    private async Task<IReadOnlyList<PackageRelease>> FetchOfficialMariaDbArchiveReleasesAsync(
+        string targetOs,
+        string targetCpu,
+        string targetPackageType,
+        string sizeLabel,
+        string packageTag,
+        CancellationToken ct)
     {
         var results = new List<PackageRelease>();
 
@@ -155,7 +276,8 @@ public sealed class PackageCatalogService
                 .Take(5)
                 .ToList();
 
-            var tasks = selectedSeries.Select(s => FetchSingleMariaDbSeriesAsync(s.Id, s.IsLts, s.SupportType, ct));
+            var tasks = selectedSeries.Select(s =>
+                FetchSingleMariaDbSeriesAsync(s.Id, s.IsLts, s.SupportType, targetOs, targetCpu, targetPackageType, sizeLabel, packageTag, ct));
             var fetched = await Task.WhenAll(tasks);
 
             var recommendedAssigned = false;
@@ -167,6 +289,7 @@ public sealed class PackageCatalogService
                     item = new PackageRelease
                     {
                         Kind = item.Kind,
+                        InstallMethod = item.InstallMethod,
                         Version = item.Version,
                         Series = item.Series,
                         DisplayName = item.DisplayName,
@@ -182,7 +305,7 @@ public sealed class PackageCatalogService
                 results.Add(item);
             }
 
-            _log.Info("PHPost", $"Catálogo MariaDB atualizado: {results.Count} versões estáveis encontradas.");
+            _log.Info("PHPost", $"Catálogo MariaDB ({targetOs} {targetCpu}) atualizado: {results.Count} versões estáveis encontradas.");
         }
         catch (Exception ex)
         {
@@ -196,6 +319,11 @@ public sealed class PackageCatalogService
         string seriesId,
         bool isLts,
         string supportType,
+        string targetOs,
+        string targetCpu,
+        string targetPackageType,
+        string sizeLabel,
+        string packageTag,
         CancellationToken ct)
     {
         try
@@ -224,9 +352,9 @@ public sealed class PackageCatalogService
                     var fileName = file.TryGetProperty("file_name", out var fnProp) ? fnProp.GetString() : null;
                     var url = file.TryGetProperty("file_download_url", out var urlProp) ? urlProp.GetString() : null;
 
-                    if (!string.Equals(os, "Windows", StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(cpu, "x86_64", StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(pkgType, "ZIP file", StringComparison.OrdinalIgnoreCase) ||
+                    if (!string.Equals(os, targetOs, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(cpu, targetCpu, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(pkgType, targetPackageType, StringComparison.OrdinalIgnoreCase) ||
                         string.IsNullOrWhiteSpace(fileName) ||
                         string.IsNullOrWhiteSpace(url) ||
                         fileName.Contains("debugsymbols", StringComparison.OrdinalIgnoreCase))
@@ -245,17 +373,18 @@ public sealed class PackageCatalogService
                         sha256 = shaProp.GetString();
                     }
 
-                    var tag = isLts ? "LTS • Portátil ZIP" : $"{supportType} • Portátil ZIP";
+                    var tag = isLts ? $"LTS • {packageTag}" : $"{supportType} • {packageTag}";
                     return new PackageRelease
                     {
                         Kind = ServiceKind.MariaDb,
+                        InstallMethod = PackageInstallMethod.ArchiveDownload,
                         Version = version,
                         Series = seriesId,
                         DisplayName = $"MariaDB {version}",
-                        Subtitle = $"Windows x64 ({tag}) • Oficial mariadb.org",
+                        Subtitle = $"{targetOs} {targetCpu} ({tag}) • Oficial mariadb.org",
                         DownloadUrl = url,
                         FileName = fileName,
-                        SizeLabel = "ZIP x64",
+                        SizeLabel = sizeLabel,
                         Sha256 = sha256,
                         IsRecommended = false
                     };
@@ -268,5 +397,112 @@ public sealed class PackageCatalogService
         }
 
         return null;
+    }
+
+    private async Task<IReadOnlyList<PackageRelease>> FetchHomebrewMariaDbReleasesAsync(CancellationToken ct)
+    {
+        var results = new List<PackageRelease>();
+        var platformLabel = $"{PlatformHelper.PlatformDisplayName} {PlatformHelper.ArchitectureDisplayName}";
+
+        (string Formula, string Series, bool IsLts)[] candidates =
+        [
+            ("mariadb@11.8", "11.8", true),
+            ("mariadb@11.4", "11.4", true),
+            ("mariadb", "latest", false),
+            ("mariadb@10.11", "10.11", true)
+        ];
+
+        try
+        {
+            var tasks = candidates.Select(c => FetchSingleHomebrewMariaDbAsync(c.Formula, c.Series, c.IsLts, platformLabel, ct));
+            var fetched = await Task.WhenAll(tasks);
+
+            var recommendedAssigned = false;
+            foreach (var rel in fetched.Where(r => r is not null))
+            {
+                var item = rel!;
+                if (!recommendedAssigned)
+                {
+                    item = new PackageRelease
+                    {
+                        Kind = item.Kind,
+                        InstallMethod = item.InstallMethod,
+                        FormulaName = item.FormulaName,
+                        Version = item.Version,
+                        Series = item.Series,
+                        DisplayName = item.DisplayName,
+                        Subtitle = item.Subtitle,
+                        DownloadUrl = item.DownloadUrl,
+                        FileName = item.FileName,
+                        SizeLabel = item.SizeLabel,
+                        Sha256 = item.Sha256,
+                        IsRecommended = true
+                    };
+                    recommendedAssigned = true;
+                }
+                results.Add(item);
+            }
+
+            _log.Info("PHPost", $"Catálogo MariaDB ({platformLabel} via Homebrew) atualizado: {results.Count} versões encontradas.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error("PHPost", $"Falha ao consultar versões do MariaDB via Homebrew: {ex.Message}");
+        }
+
+        return results;
+    }
+
+    private async Task<PackageRelease?> FetchSingleHomebrewMariaDbAsync(
+        string formulaName,
+        string fallbackSeries,
+        bool isLts,
+        string platformLabel,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var response = await _http.GetAsync($"{HomebrewFormulaApiBase}{formulaName}.json", ct);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+            if (!doc.RootElement.TryGetProperty("versions", out var versions) ||
+                !versions.TryGetProperty("stable", out var stableProp))
+            {
+                return null;
+            }
+
+            var version = stableProp.GetString();
+            if (string.IsNullOrWhiteSpace(version))
+                return null;
+
+            var series = Version.TryParse(version, out var parsed)
+                ? $"{parsed.Major}.{parsed.Minor}"
+                : fallbackSeries;
+            var tag = isLts ? "LTS • Homebrew" : "Estável • Homebrew";
+
+            return new PackageRelease
+            {
+                Kind = ServiceKind.MariaDb,
+                InstallMethod = PackageInstallMethod.HomebrewFormula,
+                FormulaName = formulaName,
+                Version = version,
+                Series = series,
+                DisplayName = $"MariaDB {version}",
+                Subtitle = $"{platformLabel} ({tag}) • Oficial formulae.brew.sh",
+                DownloadUrl = $"brew://{formulaName}",
+                FileName = $"brew install {formulaName}",
+                SizeLabel = "Homebrew",
+                Sha256 = null,
+                IsRecommended = false
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -52,7 +52,7 @@ public sealed class SettingsService
         Normalize(settings);
         Directory.CreateDirectory(Path.GetDirectoryName(SettingsFilePath)!);
         var json = JsonSerializer.Serialize(settings, JsonOptions);
-        File.WriteAllText(SettingsFilePath, json);
+        File.WriteAllText(SettingsFilePath, json, PlatformHelper.Utf8NoBom);
     }
 
     public void EnsureDirectories(AppSettings settings)
