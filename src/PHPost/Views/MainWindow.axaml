@@ -225,7 +225,7 @@
                                                FontSize="17"
                                                FontWeight="Bold"
                                                Foreground="#F8FAFC" />
-                                    <TextBlock Text="Baixe automaticamente as versões estáveis oficiais do PHP e MariaDB, configure php.ini, inicialize o banco, adicione ao PATH do Windows, crie atalhos na Área de Trabalho e inicie os servidores."
+                                    <TextBlock Text="{Binding QuickSetupDescription}"
                                                TextWrapping="Wrap"
                                                FontSize="13"
                                                Foreground="#CBD5E1"
@@ -391,7 +391,7 @@
                                                 Margin="0,0,6,0"
                                                 Command="{Binding OpenMariaDbIniCommand}"
                                                 IsEnabled="{Binding IsMariaDbInstalled}"
-                                                Content="my.ini" />
+                                                Content="{Binding MariaDbConfigFileName}" />
                                         <Button Classes="ghost"
                                                 Command="{Binding OpenMariaDbFolderCommand}"
                                                 Content="Pasta" />
@@ -414,7 +414,7 @@
                                 <WrapPanel Orientation="Horizontal">
                                     <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding OpenProjectsFolderCommand}" Content="Abrir Pasta www" />
                                     <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding OpenTerminalCommand}" Content="Terminal PHP + MariaDB" />
-                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="Configurar PATH do Windows" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="{Binding ConfigurePathButtonLabel}" />
                                     <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding CreateDesktopShortcutsCommand}" Content="Criar Atalhos na Área de Trabalho" />
                                 </WrapPanel>
 
@@ -430,7 +430,7 @@
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
                         <StackPanel Spacing="2">
                             <TextBlock Text="Versões Oficiais da Web" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
-                            <TextBlock Text="Download direto dos servidores oficiais windows.php.net e downloads.mariadb.org com verificação SHA-256."
+                            <TextBlock Text="{Binding CatalogSubtitle}"
                                        FontSize="12.5" Foreground="#94A3B8" />
                         </StackPanel>
                         <Button Grid.Column="1"
@@ -446,7 +446,7 @@
                         <Border Grid.Column="0" Classes="card" Padding="16">
                             <DockPanel LastChildFill="True">
                                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="4">
-                                    <TextBlock Text="PHP para Windows (x64)" FontSize="15" FontWeight="Bold" Foreground="#818CF8" />
+                                    <TextBlock Text="{Binding PhpCatalogTitle}" FontSize="15" FontWeight="Bold" Foreground="#818CF8" />
                                     <StackPanel Spacing="4" IsVisible="{Binding IsPhpInstalling}">
                                         <ProgressBar Minimum="0" Maximum="100" Value="{Binding PhpInstallProgress}" />
                                         <TextBlock Text="{Binding PhpProgressText}" FontSize="11.5" Foreground="#94A3B8" />
@@ -505,7 +505,7 @@
                         <Border Grid.Column="1" Classes="card" Padding="16">
                             <DockPanel LastChildFill="True">
                                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="4">
-                                    <TextBlock Text="MariaDB Portátil para Windows (x64)" FontSize="15" FontWeight="Bold" Foreground="#38BDF8" />
+                                    <TextBlock Text="{Binding MariaDbCatalogTitle}" FontSize="15" FontWeight="Bold" Foreground="#38BDF8" />
                                     <StackPanel Spacing="4" IsVisible="{Binding IsMariaDbInstalling}">
                                         <ProgressBar Minimum="0" Maximum="100" Value="{Binding MariaDbInstallProgress}" Foreground="#0EA5E9" />
                                         <TextBlock Text="{Binding MariaDbProgressText}" FontSize="11.5" Foreground="#94A3B8" />
@@ -665,18 +665,18 @@
                                         <Grid ColumnDefinitions="68,72,*" Margin="0,2">
                                             <TextBlock Grid.Column="0"
                                                        Text="{Binding FormattedTime}"
-                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontFamily="Cascadia Mono, JetBrains Mono, SF Mono, Menlo, Consolas, monospace"
                                                        FontSize="12"
                                                        Foreground="#475569" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Source}"
-                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontFamily="Cascadia Mono, JetBrains Mono, SF Mono, Menlo, Consolas, monospace"
                                                        FontSize="12"
                                                        FontWeight="SemiBold"
                                                        Foreground="{Binding Source, Converter={x:Static conv:StatusConverters.LogSourceToBrush}}" />
                                             <TextBlock Grid.Column="2"
                                                        Text="{Binding Message}"
-                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontFamily="Cascadia Mono, JetBrains Mono, SF Mono, Menlo, Consolas, monospace"
                                                        FontSize="12"
                                                        TextWrapping="Wrap"
                                                        Foreground="{Binding Level, Converter={x:Static conv:StatusConverters.LogLevelToBrush}}" />
@@ -692,11 +692,11 @@
                 <ScrollViewer IsVisible="{Binding IsSettingsTab}" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="16" MaxWidth="780" HorizontalAlignment="Left">
 
-                        <!-- Windows Desktop Integration -->
+                        <!-- Desktop Integration -->
                         <Border Classes="card">
                             <StackPanel Spacing="12">
-                                <TextBlock Text="Configuração do Desktop &amp; Windows" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
-                                <TextBlock Text="Prepara sua máquina sem precisar de privilégios de Administrador: adiciona PHP e MariaDB ao PATH do usuário e cria atalhos práticos na Área de Trabalho."
+                                <TextBlock Text="{Binding DesktopIntegrationTitle}" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding DesktopIntegrationDescription}"
                                            TextWrapping="Wrap" FontSize="12.5" Foreground="#94A3B8" />
 
                                 <Border Background="#0D1322" CornerRadius="10" Padding="12">
@@ -706,7 +706,7 @@
                                 <WrapPanel Orientation="Horizontal">
                                     <Button Classes="primary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="Adicionar PHP &amp; MariaDB ao PATH" />
                                     <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding CreateDesktopShortcutsCommand}" Content="Criar Atalhos na Área de Trabalho" />
-                                    <Button Classes="ghost" Margin="0,0,10,8" Command="{Binding OpenVcRedistDownloadCommand}" Content="Baixar VC++ Redistributable x64" />
+                                    <Button Classes="ghost" Margin="0,0,10,8" IsVisible="{Binding IsWindows}" Command="{Binding OpenVcRedistDownloadCommand}" Content="Baixar VC++ Redistributable x64" />
                                 </WrapPanel>
                             </StackPanel>
                         </Border>

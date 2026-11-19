@@ -60,7 +60,33 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _autoConfigurePath = true;
     [ObservableProperty] private bool _autoCreateDesktopShortcut = true;
     [ObservableProperty] private bool _autoStartServicesOnLaunch;
-    [ObservableProperty] private string _pathStatusSummary = "Verificando PATH do Windows...";
+    [ObservableProperty] private string _pathStatusSummary = $"Verificando PATH ({PlatformHelper.PlatformDisplayName})...";
+
+    // Platform Display Helpers
+    public bool IsWindows => PlatformHelper.IsWindows;
+    public string PlatformDisplayName => PlatformHelper.PlatformDisplayName;
+    public string MariaDbConfigFileName => PlatformHelper.MariaDbConfigFileName;
+    public string QuickSetupDescription => PlatformHelper.IsWindows
+        ? "Baixe automaticamente as versões estáveis oficiais do PHP e MariaDB, configure php.ini, inicialize o banco, adicione ao PATH do Windows, crie atalhos na Área de Trabalho e inicie os servidores."
+        : $"Baixe e configure automaticamente PHP e MariaDB para {PlatformHelper.PlatformDisplayName} ({PlatformHelper.ArchitectureDisplayName}), gere php.ini e {PlatformHelper.MariaDbConfigFileName}, configure o PATH do terminal, crie atalhos e inicie os servidores.";
+    public string CatalogSubtitle => PlatformHelper.IsWindows
+        ? "Download direto dos servidores oficiais windows.php.net e downloads.mariadb.org com verificação SHA-256."
+        : PlatformHelper.IsLinux && !PlatformHelper.IsArm64
+            ? "Download direto de binários portáteis PHP (dl.static-php.dev) e MariaDB oficial (downloads.mariadb.org) com verificação SHA-256."
+            : $"Download de PHP portátil (dl.static-php.dev) e MariaDB gerenciado via Homebrew para {PlatformHelper.PlatformDisplayName} {PlatformHelper.ArchitectureDisplayName}.";
+    public string PhpCatalogTitle => $"PHP para {PlatformHelper.PlatformDisplayName} ({PlatformHelper.ArchitectureDisplayName})";
+    public string MariaDbCatalogTitle => PlatformHelper.IsWindows || (PlatformHelper.IsLinux && !PlatformHelper.IsArm64)
+        ? $"MariaDB Portátil para {PlatformHelper.PlatformDisplayName} ({PlatformHelper.ArchitectureDisplayName})"
+        : $"MariaDB para {PlatformHelper.PlatformDisplayName} (Homebrew)";
+    public string DesktopIntegrationTitle => $"Configuração do Desktop & {PlatformHelper.PlatformDisplayName}";
+    public string DesktopIntegrationDescription => PlatformHelper.IsWindows
+        ? "Prepara sua máquina sem precisar de privilégios de Administrador: adiciona PHP e MariaDB ao PATH do usuário e cria atalhos práticos na Área de Trabalho."
+        : PlatformHelper.IsMacOS
+            ? "Prepara seu Mac sem precisar de sudo: adiciona PHP e MariaDB ao ~/.zshrc e cria atalhos práticos no Desktop."
+            : "Prepara seu Linux sem precisar de root: adiciona PHP e MariaDB ao ~/.bashrc / ~/.profile e cria lançadores .desktop no menu de aplicativos e na Área de Trabalho.";
+    public string ConfigurePathButtonLabel => PlatformHelper.IsWindows
+        ? "Configurar PATH do Windows"
+        : $"Configurar PATH ({PlatformHelper.PlatformDisplayName})";
 
     // Projects
     [ObservableProperty] private string _newProjectName = "";
@@ -447,7 +473,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void OpenMariaDbIni()
     {
-        var iniPath = Path.Combine(_settings.MariaDbDataDirectory, "my.ini");
+        var iniPath = PlatformHelper.ResolveMariaDbConfigPath(_settings.MariaDbDataDirectory);
         if (File.Exists(iniPath))
             _desktopSetup.OpenInShell(iniPath);
         else
@@ -795,13 +821,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     private void RefreshPathStatus()
     {
+        var os = PlatformHelper.PlatformDisplayName;
         var (phpInPath, mariaInPath) = _desktopSetup.CheckUserPathStatus(_settings);
         PathStatusSummary = (phpInPath, mariaInPath) switch
         {
-            (true, true) => "PHP e MariaDB estão configurados no PATH do Windows.",
-            (true, false) => "Apenas PHP está no PATH do Windows.",
-            (false, true) => "Apenas MariaDB está no PATH do Windows.",
-            _ => "PHP e MariaDB ainda não estão no PATH do Windows."
+            (true, true) => $"PHP e MariaDB estão configurados no PATH ({os}).",
+            (true, false) => $"Apenas PHP está no PATH ({os}).",
+            (false, true) => $"Apenas MariaDB está no PATH ({os}).",
+            _ => $"PHP e MariaDB ainda não estão no PATH ({os})."
         };
     }
 
