@@ -1,0 +1,769 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PHPost.ViewModels"
+        xmlns:models="using:PHPost.Models"
+        xmlns:conv="using:PHPost.Converters"
+        x:Class="PHPost.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="PHPost — Ambiente Local PHP + MariaDB"
+        Width="1120"
+        Height="720"
+        MinWidth="920"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid ColumnDefinitions="236,*">
+
+        <!-- ==================== SIDEBAR ==================== -->
+        <Border Grid.Column="0"
+                Background="#0F1624"
+                BorderBrush="#1E293B"
+                BorderThickness="0,0,1,0"
+                Padding="16,20">
+            <DockPanel LastChildFill="True">
+
+                <!-- Brand Header -->
+                <StackPanel DockPanel.Dock="Top" Margin="6,0,6,24" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Border Width="34" Height="34" CornerRadius="10" Background="#6366F1">
+                            <TextBlock Text="P"
+                                       FontSize="19"
+                                       FontWeight="Black"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="PHPost"
+                                       FontSize="19"
+                                       FontWeight="Bold"
+                                       Foreground="#F8FAFC" />
+                            <TextBlock Text="PHP + MariaDB Local"
+                                       FontSize="11.5"
+                                       Foreground="#64748B" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Bottom Live Status & Terminal Shortcut -->
+                <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,16,0,0">
+                    <Border Background="#131B2E"
+                            BorderBrush="#1F2C45"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="STATUS RÁPIDO"
+                                       FontSize="10.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#64748B" />
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Ellipse Grid.Column="0" Width="8" Height="8" Margin="0,0,8,0"
+                                         Fill="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                <TextBlock Grid.Column="1" Text="PHP" FontSize="12.5" Foreground="#E2E8F0" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToLabel}}"
+                                           FontSize="11.5"
+                                           Foreground="#94A3B8" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Ellipse Grid.Column="0" Width="8" Height="8" Margin="0,0,8,0"
+                                         Fill="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                <TextBlock Grid.Column="1" Text="MariaDB" FontSize="12.5" Foreground="#E2E8F0" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToLabel}}"
+                                           FontSize="11.5"
+                                           Foreground="#94A3B8" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Classes="secondary"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding OpenTerminalCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Width="14" Height="14"
+                                      Data="M2,4 L22,4 L22,20 L2,20 Z M5,9 L9,12 L5,15 M11,15 L17,15" />
+                            <TextBlock Text="Abrir Terminal" FontSize="12.5" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Navigation Buttons -->
+                <StackPanel Spacing="6">
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="0"
+                            Background="{Binding IsDashboardTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsDashboardTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M3,13 L11,13 L11,3 L3,3 Z M3,21 L11,21 L11,15 L3,15 Z M13,21 L21,21 L21,11 L13,11 Z M13,3 L13,9 L21,9 L21,3 Z" />
+                            <TextBlock Text="Painel" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="1"
+                            Background="{Binding IsPackagesTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsPackagesTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M19,9 L15,9 L15,3 L9,3 L9,9 L5,9 L12,16 Z M5,18 L5,20 L19,20 L19,18 Z" />
+                            <TextBlock Text="Versões &amp; Downloads" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="2"
+                            Background="{Binding IsProjectsTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsProjectsTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M10,4 L4,4 C2.9,4 2,4.9 2,6 L2,18 C2,19.1 2.9,20 4,20 L20,20 C21.1,20 22,19.1 22,18 L22,8 C22,6.9 21.1,6 20,6 L12,6 Z" />
+                            <TextBlock Text="Projetos (www)" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="3"
+                            Background="{Binding IsLogsTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsLogsTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M4,5 L20,5 L20,7 L4,7 Z M4,11 L20,11 L20,13 L4,13 Z M4,17 L14,17 L14,19 L4,19 Z" />
+                            <TextBlock Text="Console de Logs" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="4"
+                            Background="{Binding IsSettingsTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsSettingsTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M12,15.5 C10.07,15.5 8.5,13.93 8.5,12 C8.5,10.07 10.07,8.5 12,8.5 C13.93,8.5 15.5,10.07 15.5,12 C15.5,13.93 13.93,15.5 12,15.5 Z M19.43,12.98 C19.47,12.66 19.5,12.34 19.5,12 C19.5,11.66 19.47,11.34 19.43,11.02 L21.54,9.37 L19.54,5.91 L17.05,6.91 C16.53,6.51 15.96,6.18 15.36,5.93 L14.98,3.28 L10.98,3.28 L10.6,5.93 C10,6.18 9.43,6.51 8.91,6.91 L6.42,5.91 L4.42,9.37 L6.53,11.02 C6.49,11.34 6.46,11.66 6.46,12 C6.46,12.34 6.49,12.66 6.53,12.98 L4.42,14.63 L6.42,18.09 L8.91,17.09 C9.43,17.49 10,17.82 10.6,18.07 L10.98,20.72 L14.98,20.72 L15.36,18.07 C15.96,17.82 16.53,17.49 17.05,17.09 L19.54,18.09 L21.54,14.63 Z" />
+                            <TextBlock Text="Desktop &amp; Ajustes" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+            </DockPanel>
+        </Border>
+
+        <!-- ==================== MAIN CONTENT ==================== -->
+        <DockPanel Grid.Column="1" LastChildFill="True">
+
+            <!-- Top Action Bar -->
+            <Border DockPanel.Dock="Top"
+                    Background="#0D1322"
+                    BorderBrush="#1E293B"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,14">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Central de Controle"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#F8FAFC" />
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="12.5"
+                                   Foreground="#94A3B8"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Button Classes="success"
+                                Command="{Binding StartAllCommand}"
+                                IsVisible="{Binding IsBothInstalled}">
+                            <TextBlock Text="Iniciar Tudo" />
+                        </Button>
+                        <Button Classes="danger"
+                                Command="{Binding StopAllCommand}"
+                                IsVisible="{Binding IsAnyServiceRunning}">
+                            <TextBlock Text="Parar Tudo" />
+                        </Button>
+                        <Button Classes="primary"
+                                Command="{Binding QuickSetupAllCommand}"
+                                IsEnabled="{Binding !IsQuickSetupRunning}"
+                                IsVisible="{Binding NeedsInitialSetup}">
+                            <TextBlock Text="Instalar &amp; Iniciar Tudo" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Page Container -->
+            <Grid Margin="24,20">
+
+                <!-- ==================== TAB 0: DASHBOARD ==================== -->
+                <ScrollViewer IsVisible="{Binding IsDashboardTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="18">
+
+                        <!-- One-Click Auto-Setup Banner (visible until both PHP & MariaDB are installed) -->
+                        <Border IsVisible="{Binding NeedsInitialSetup}"
+                                CornerRadius="16"
+                                Padding="22"
+                                BorderBrush="#4F46E5"
+                                BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#1E1B4B" Offset="0" />
+                                    <GradientStop Color="#131B2E" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Instalação Automática em 1 Clique"
+                                               FontSize="17"
+                                               FontWeight="Bold"
+                                               Foreground="#F8FAFC" />
+                                    <TextBlock Text="Baixe automaticamente as versões estáveis oficiais do PHP e MariaDB, configure php.ini, inicialize o banco, adicione ao PATH do Windows, crie atalhos na Área de Trabalho e inicie os servidores."
+                                               TextWrapping="Wrap"
+                                               FontSize="13"
+                                               Foreground="#CBD5E1"
+                                               LineHeight="20" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="primary"
+                                        VerticalAlignment="Center"
+                                        Padding="20,12"
+                                        Command="{Binding QuickSetupAllCommand}"
+                                        IsEnabled="{Binding !IsQuickSetupRunning}">
+                                    <TextBlock Text="Configurar Ambiente Agora" FontSize="13.5" />
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Two Service Cards: PHP & MariaDB -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+
+                            <!-- PHP Service Card -->
+                            <Border Grid.Column="0" Classes="card">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Border Width="42" Height="42" CornerRadius="11" Background="#1E2346" Margin="0,0,12,0">
+                                            <TextBlock Text="PHP"
+                                                       FontSize="13"
+                                                       FontWeight="ExtraBold"
+                                                       Foreground="#818CF8"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Servidor PHP" FontSize="15.5" FontWeight="Bold" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding PhpVersionDisplay}" FontSize="12.5" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2"
+                                                CornerRadius="99"
+                                                Padding="10,4"
+                                                VerticalAlignment="Center"
+                                                Background="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToBadgeBackground}}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="7" Height="7"
+                                                         Fill="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                                <TextBlock Text="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToLabel}}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{Binding PhpState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Background="#0D1322" CornerRadius="10" Padding="12,10">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="ENDEREÇO LOCAL" FontSize="10" FontWeight="SemiBold" Foreground="#64748B" />
+                                                <TextBlock Text="{Binding PhpUrl}" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding PhpPidLabel}"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="#64748B" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Install Progress (Visible while downloading/extracting) -->
+                                    <StackPanel Spacing="5" IsVisible="{Binding IsPhpInstalling}">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding PhpInstallProgress}" />
+                                        <TextBlock Text="{Binding PhpProgressText}" FontSize="11.5" Foreground="#94A3B8" />
+                                    </StackPanel>
+
+                                    <!-- Actions -->
+                                    <WrapPanel Orientation="Horizontal" ItemHeight="36">
+                                        <Button Classes="primary"
+                                                Margin="0,0,8,0"
+                                                Command="{Binding PrimaryPhpActionCommand}"
+                                                IsEnabled="{Binding !IsPhpInstalling}">
+                                            <TextBlock Text="{Binding PhpPrimaryActionLabel}" />
+                                        </Button>
+                                        <Button Classes="ghost"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding OpenPhpBrowserCommand}"
+                                                IsEnabled="{Binding IsPhpRunning}"
+                                                Content="Abrir Site" />
+                                        <Button Classes="ghost"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding OpenPhpIniCommand}"
+                                                IsEnabled="{Binding IsPhpInstalled}"
+                                                Content="php.ini" />
+                                        <Button Classes="ghost"
+                                                Command="{Binding OpenPhpFolderCommand}"
+                                                Content="Pasta" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- MariaDB Service Card -->
+                            <Border Grid.Column="1" Classes="card">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Border Width="42" Height="42" CornerRadius="11" Background="#0F293B" Margin="0,0,12,0">
+                                            <TextBlock Text="SQL"
+                                                       FontSize="13"
+                                                       FontWeight="ExtraBold"
+                                                       Foreground="#38BDF8"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="MariaDB Server" FontSize="15.5" FontWeight="Bold" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding MariaDbVersionDisplay}" FontSize="12.5" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2"
+                                                CornerRadius="99"
+                                                Padding="10,4"
+                                                VerticalAlignment="Center"
+                                                Background="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToBadgeBackground}}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="7" Height="7"
+                                                         Fill="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                                <TextBlock Text="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToLabel}}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{Binding MariaDbState, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Background="#0D1322" CornerRadius="10" Padding="12,10">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="CONEXÃO (USUÁRIO: root | SEM SENHA)" FontSize="10" FontWeight="SemiBold" Foreground="#64748B" />
+                                                <TextBlock Text="{Binding MariaDbEndpoint}" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MariaDbPidLabel}"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="#64748B" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Install Progress -->
+                                    <StackPanel Spacing="5" IsVisible="{Binding IsMariaDbInstalling}">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding MariaDbInstallProgress}" Foreground="#0EA5E9" />
+                                        <TextBlock Text="{Binding MariaDbProgressText}" FontSize="11.5" Foreground="#94A3B8" />
+                                    </StackPanel>
+
+                                    <!-- Actions -->
+                                    <WrapPanel Orientation="Horizontal" ItemHeight="36">
+                                        <Button Classes="primary"
+                                                Margin="0,0,8,0"
+                                                Command="{Binding PrimaryMariaDbActionCommand}"
+                                                IsEnabled="{Binding !IsMariaDbInstalling}">
+                                            <TextBlock Text="{Binding MariaDbPrimaryActionLabel}" />
+                                        </Button>
+                                        <Button Classes="ghost"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding OpenMariaDbCliCommand}"
+                                                IsEnabled="{Binding IsMariaDbRunning}"
+                                                Content="Console SQL" />
+                                        <Button Classes="ghost"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding OpenMariaDbIniCommand}"
+                                                IsEnabled="{Binding IsMariaDbInstalled}"
+                                                Content="my.ini" />
+                                        <Button Classes="ghost"
+                                                Command="{Binding OpenMariaDbFolderCommand}"
+                                                Content="Pasta" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Quick Workspace & Desktop Tools Card -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="14">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Atalhos do Ambiente &amp; Desktop" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC" />
+                                        <TextBlock Text="{Binding ProjectsDirectory}" FontSize="12" Foreground="#64748B" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="ghost" Command="{Binding SelectTabCommand}" CommandParameter="2" Content="Gerenciar Projetos →" />
+                                </Grid>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding OpenProjectsFolderCommand}" Content="Abrir Pasta www" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding OpenTerminalCommand}" Content="Terminal PHP + MariaDB" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="Configurar PATH do Windows" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding CreateDesktopShortcutsCommand}" Content="Criar Atalhos na Área de Trabalho" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding PathStatusSummary}" FontSize="12" Foreground="#94A3B8" />
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================== TAB 1: VERSÕES & DOWNLOADS ==================== -->
+                <Grid IsVisible="{Binding IsPackagesTab}" RowDefinitions="Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Versões Oficiais da Web" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="Download direto dos servidores oficiais windows.php.net e downloads.mariadb.org com verificação SHA-256."
+                                       FontSize="12.5" Foreground="#94A3B8" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                VerticalAlignment="Center"
+                                Command="{Binding RefreshCatalogCommand}"
+                                IsEnabled="{Binding !IsLoadingCatalog}"
+                                Content="Atualizar Catálogo" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <!-- PHP Versions Column -->
+                        <Border Grid.Column="0" Classes="card" Padding="16">
+                            <DockPanel LastChildFill="True">
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="4">
+                                    <TextBlock Text="PHP para Windows (x64)" FontSize="15" FontWeight="Bold" Foreground="#818CF8" />
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsPhpInstalling}">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding PhpInstallProgress}" />
+                                        <TextBlock Text="{Binding PhpProgressText}" FontSize="11.5" Foreground="#94A3B8" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding PhpReleases}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:PackageRelease">
+                                                <Border Background="#0D1322"
+                                                        BorderBrush="#1F2C45"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="12"
+                                                        Margin="0,0,0,8">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                        <StackPanel Spacing="3">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13.5" Foreground="#F8FAFC" />
+                                                                <Border IsVisible="{Binding IsRecommended}" Background="#1E1B4B" CornerRadius="6" Padding="6,2">
+                                                                    <TextBlock Text="Recomendada" FontSize="10.5" FontWeight="SemiBold" Foreground="#A5B4FC" />
+                                                                </Border>
+                                                                <Border IsVisible="{Binding IsActive}" Background="#14532D" CornerRadius="6" Padding="6,2">
+                                                                    <TextBlock Text="Ativa" FontSize="10.5" FontWeight="SemiBold" Foreground="#86EFAC" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Subtitle}" FontSize="11.5" Foreground="#64748B" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding SizeLabel}" FontSize="11" Foreground="#475569" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Classes="primary"
+                                                                    Padding="12,6"
+                                                                    FontSize="12"
+                                                                    IsEnabled="{Binding !IsActive}"
+                                                                    Content="{Binding ActionLabel}"
+                                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).InstallOrActivateReleaseCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                            <Button Classes="ghost"
+                                                                    IsVisible="{Binding IsInstalled}"
+                                                                    Content="Remover"
+                                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).UninstallReleaseCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- MariaDB Versions Column -->
+                        <Border Grid.Column="1" Classes="card" Padding="16">
+                            <DockPanel LastChildFill="True">
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="4">
+                                    <TextBlock Text="MariaDB Portátil para Windows (x64)" FontSize="15" FontWeight="Bold" Foreground="#38BDF8" />
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsMariaDbInstalling}">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding MariaDbInstallProgress}" Foreground="#0EA5E9" />
+                                        <TextBlock Text="{Binding MariaDbProgressText}" FontSize="11.5" Foreground="#94A3B8" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding MariaDbReleases}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:PackageRelease">
+                                                <Border Background="#0D1322"
+                                                        BorderBrush="#1F2C45"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="12"
+                                                        Margin="0,0,0,8">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                        <StackPanel Spacing="3">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13.5" Foreground="#F8FAFC" />
+                                                                <Border IsVisible="{Binding IsRecommended}" Background="#0C4A6E" CornerRadius="6" Padding="6,2">
+                                                                    <TextBlock Text="LTS Recomendada" FontSize="10.5" FontWeight="SemiBold" Foreground="#7DD3FC" />
+                                                                </Border>
+                                                                <Border IsVisible="{Binding IsActive}" Background="#14532D" CornerRadius="6" Padding="6,2">
+                                                                    <TextBlock Text="Ativa" FontSize="10.5" FontWeight="SemiBold" Foreground="#86EFAC" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Subtitle}" FontSize="11.5" Foreground="#64748B" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding FileName}" FontSize="11" Foreground="#475569" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Classes="primary"
+                                                                    Padding="12,6"
+                                                                    FontSize="12"
+                                                                    IsEnabled="{Binding !IsActive}"
+                                                                    Content="{Binding ActionLabel}"
+                                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).InstallOrActivateReleaseCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                            <Button Classes="ghost"
+                                                                    IsVisible="{Binding IsInstalled}"
+                                                                    Content="Remover"
+                                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).UninstallReleaseCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ==================== TAB 2: PROJETOS ==================== -->
+                <Grid IsVisible="{Binding IsProjectsTab}" RowDefinitions="Auto,Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Seus Projetos PHP" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="{Binding ProjectsDirectory}" FontSize="12.5" Foreground="#94A3B8" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Classes="secondary" Command="{Binding OpenProjectsFolderCommand}" Content="Abrir Pasta www" />
+                            <Button Classes="ghost" Command="{Binding RefreshProjectsCommand}" Content="Atualizar" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Create New Project Bar -->
+                    <Border Grid.Row="1" Classes="card" Padding="16" Margin="0,0,0,16">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <TextBox Text="{Binding NewProjectName}"
+                                     Watermark="Nome do novo projeto (ex: loja-virtual, api-php)..." />
+                            <Button Grid.Column="1"
+                                    Classes="primary"
+                                    Command="{Binding CreateProjectCommand}"
+                                    Content="+ Criar Projeto PHP" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Projects List -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Projects}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ProjectInfo">
+                                    <Border Classes="card" Padding="16" Margin="0,0,0,10">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                <TextBlock Text="{Binding Url}" FontSize="12.5" Foreground="#818CF8" />
+                                                <TextBlock Text="{Binding FullPath}" FontSize="11.5" Foreground="#64748B" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <Button Classes="primary"
+                                                        Padding="12,7"
+                                                        Content="Abrir no Navegador"
+                                                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenProjectInBrowserCommand}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Classes="secondary"
+                                                        Padding="12,7"
+                                                        Content="Abrir Pasta"
+                                                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenProjectFolderCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ==================== TAB 3: LOGS ==================== -->
+                <Grid IsVisible="{Binding IsLogsTab}" RowDefinitions="Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Console de Logs" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <Button Classes="ghost"
+                                    Command="{Binding SetLogFilterCommand}"
+                                    CommandParameter="Todos"
+                                    Background="{Binding IsFilterAll, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterAll, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="Todos" />
+                            <Button Classes="ghost"
+                                    Command="{Binding SetLogFilterCommand}"
+                                    CommandParameter="PHPost"
+                                    Background="{Binding IsFilterPhPost, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterPhPost, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="PHPost" />
+                            <Button Classes="ghost"
+                                    Command="{Binding SetLogFilterCommand}"
+                                    CommandParameter="PHP"
+                                    Background="{Binding IsFilterPhp, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterPhp, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="PHP" />
+                            <Button Classes="ghost"
+                                    Command="{Binding SetLogFilterCommand}"
+                                    CommandParameter="MariaDB"
+                                    Background="{Binding IsFilterMariaDb, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterMariaDb, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="MariaDB" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="secondary" Command="{Binding ClearLogsCommand}" Content="Limpar Logs" />
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                            Background="#090D16"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding FilteredLogs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:LogEntry">
+                                        <Grid ColumnDefinitions="68,72,*" Margin="0,2">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding FormattedTime}"
+                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontSize="12"
+                                                       Foreground="#475569" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Source}"
+                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding Source, Converter={x:Static conv:StatusConverters.LogSourceToBrush}}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Message}"
+                                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{Binding Level, Converter={x:Static conv:StatusConverters.LogLevelToBrush}}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <!-- ==================== TAB 4: DESKTOP & AJUSTES ==================== -->
+                <ScrollViewer IsVisible="{Binding IsSettingsTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16" MaxWidth="780" HorizontalAlignment="Left">
+
+                        <!-- Windows Desktop Integration -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Configuração do Desktop &amp; Windows" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+                                <TextBlock Text="Prepara sua máquina sem precisar de privilégios de Administrador: adiciona PHP e MariaDB ao PATH do usuário e cria atalhos práticos na Área de Trabalho."
+                                           TextWrapping="Wrap" FontSize="12.5" Foreground="#94A3B8" />
+
+                                <Border Background="#0D1322" CornerRadius="10" Padding="12">
+                                    <TextBlock Text="{Binding PathStatusSummary}" FontSize="12.5" Foreground="#E2E8F0" />
+                                </Border>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Classes="primary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="Adicionar PHP &amp; MariaDB ao PATH" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding CreateDesktopShortcutsCommand}" Content="Criar Atalhos na Área de Trabalho" />
+                                    <Button Classes="ghost" Margin="0,0,10,8" Command="{Binding OpenVcRedistDownloadCommand}" Content="Baixar VC++ Redistributable x64" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Directories & Ports -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Diretórios e Portas" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="Pasta Base de Instalação (runtimes e dados)" FontSize="12.5" Foreground="#94A3B8" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Text="{Binding BaseDirectory}" />
+                                        <Button Grid.Column="1" Classes="secondary" Content="Escolher..." Click="OnBrowseBaseDirClick" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="Pasta de Projetos (Document Root / www)" FontSize="12.5" Foreground="#94A3B8" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Text="{Binding ProjectsDirectory}" />
+                                        <Button Grid.Column="1" Classes="secondary" Content="Escolher..." Click="OnBrowseProjectsDirClick" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                                    <StackPanel Grid.Column="0" Spacing="5">
+                                        <TextBlock Text="Host PHP" FontSize="12.5" Foreground="#94A3B8" />
+                                        <TextBox Text="{Binding PhpHost}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="5">
+                                        <TextBlock Text="Porta PHP" FontSize="12.5" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding PhpPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="5">
+                                        <TextBlock Text="Porta MariaDB" FontSize="12.5" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding MariaDbPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="8" Margin="0,4,0,0">
+                                    <CheckBox IsChecked="{Binding AutoConfigurePath}" Content="Atualizar PATH do usuário automaticamente ao instalar ou trocar versões" />
+                                    <CheckBox IsChecked="{Binding AutoCreateDesktopShortcut}" Content="Criar atalhos na Área de Trabalho durante a instalação rápida" />
+                                    <CheckBox IsChecked="{Binding AutoStartServicesOnLaunch}" Content="Iniciar PHP e MariaDB automaticamente ao abrir o PHPost" />
+                                </StackPanel>
+
+                                <Button Classes="success"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding SaveSettingsCommand}"
+                                        Content="Salvar Configurações" />
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </Grid>
+        </DockPanel>
+    </Grid>
+</Window>

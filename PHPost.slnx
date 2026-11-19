@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PHPost/PHPost.csproj" />
+  </Folder>
+</Solution>
