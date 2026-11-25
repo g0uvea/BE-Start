@@ -96,6 +96,7 @@ jobs:
         if: matrix.archive_ext == 'zip'
         shell: pwsh
         run: |
+          Remove-Item -Path "publish_out/*.pdb" -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path dist_artifacts | Out-Null
           $dest = "dist_artifacts/BEStart-${{ steps.meta.outputs.version }}-${{ matrix.rid }}-portable.zip"
           Compress-Archive -Path "publish_out/*" -DestinationPath $dest -CompressionLevel Optimal
@@ -104,6 +105,7 @@ jobs:
         if: matrix.archive_ext == 'tar.gz'
         shell: bash
         run: |
+          rm -f publish_out/*.pdb publish_out/*.dbg
           mkdir -p dist_artifacts
           chmod +x publish_out/BEStart
           tar -czf "dist_artifacts/BEStart-${{ steps.meta.outputs.version }}-${{ matrix.rid }}-portable.tar.gz" -C publish_out .

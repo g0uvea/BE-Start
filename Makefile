@@ -94,6 +94,7 @@ standalone:
 	@echo Compilando $(APP_NAME) v$(VERSION) [$(RID) standalone single-file, sem necessidade de .NET]...
 	@$(call RM_DIR,$(STANDALONE_DIR))
 	dotnet publish $(PROJECT) -r $(RID) $(PUBLISH_COMMON) $(SINGLE_FILE_FLAGS) -o $(STANDALONE_DIR)
+	@$(call RM_DIR,$(STANDALONE_DIR)/*.pdb)
 	@echo Concluido em $(STANDALONE_DIR)/
 
 portable:
