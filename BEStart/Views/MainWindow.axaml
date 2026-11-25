@@ -1,0 +1,681 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:BEStart.ViewModels"
+        xmlns:models="using:BEStart.Models"
+        xmlns:conv="using:BEStart.Converters"
+        x:Class="BEStart.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="BE-Start — Bancos SQL, NoSQL &amp; PHP"
+        Icon="avares://BEStart/Assets/be-start-icon.ico"
+        UseLayoutRounding="True"
+        Width="1180"
+        Height="760"
+        MinWidth="960"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <!-- Reusable Service Card Template (SQL, NoSQL & PHP) -->
+        <DataTemplate x:Key="ServiceCardTemplate" x:DataType="vm:ServiceCardViewModel">
+            <Border Classes="card" Margin="0,0,14,14">
+                <StackPanel Spacing="12">
+                    <!-- Header -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Width="42" Height="42" CornerRadius="11"
+                                Background="{Binding BadgeBgHex, Converter={x:Static conv:StatusConverters.HexToBrush}}"
+                                Margin="0,0,12,0">
+                            <TextBlock Text="{Binding BadgeText}"
+                                       FontSize="12"
+                                       FontWeight="ExtraBold"
+                                       Foreground="{Binding BadgeFgHex, Converter={x:Static conv:StatusConverters.HexToBrush}}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{Binding Title}" FontSize="15.5" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="{Binding ActiveVersionDisplay}" FontSize="12" Foreground="#94A3B8" />
+                        </StackPanel>
+                        <Border Grid.Column="2"
+                                CornerRadius="99"
+                                Padding="10,4"
+                                VerticalAlignment="Center"
+                                Background="{Binding State, Converter={x:Static conv:StatusConverters.StateToBadgeBackground}}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="7" Height="7"
+                                         Fill="{Binding State, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                <TextBlock Text="{Binding State, Converter={x:Static conv:StatusConverters.StateToLabel}}"
+                                           FontSize="11.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding State, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- IP & Port Box -->
+                    <Border Background="#0D1322" CornerRadius="10" Padding="12,9">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding ConnectionHint}" FontSize="10.5" FontWeight="SemiBold" Foreground="#64748B" />
+                                <TextBlock Text="{Binding EndpointDisplay}" FontSize="13.5" FontWeight="Bold" Foreground="#E2E8F0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding PidLabel}"
+                                       VerticalAlignment="Center"
+                                       FontSize="11.5"
+                                       Foreground="#64748B" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Version Selector Dropdown -->
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <TextBlock Text="Versão" VerticalAlignment="Center" FontSize="12" Foreground="#94A3B8" />
+                        <ComboBox Grid.Column="1"
+                                  HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding Versions}"
+                                  SelectedItem="{Binding SelectedVersion}"
+                                  IsEnabled="{Binding !IsInstalling}"
+                                  PlaceholderText="Carregando versões...">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:PackageRelease">
+                                    <TextBlock Text="{Binding DropdownLabel}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- Install Progress -->
+                    <StackPanel Spacing="4" IsVisible="{Binding IsInstalling}">
+                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding InstallProgress}" />
+                        <TextBlock Text="{Binding ProgressText}" FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <!-- Actions -->
+                    <WrapPanel Orientation="Horizontal">
+                        <Button Classes="primary"
+                                Margin="0,0,8,6"
+                                Command="{Binding PrimaryActionCommand}"
+                                IsVisible="{Binding IsPrimaryButtonPrimary}"
+                                IsEnabled="{Binding !IsInstalling}"
+                                Content="{Binding PrimaryActionLabel}" />
+                        <Button Classes="success"
+                                Margin="0,0,8,6"
+                                Command="{Binding PrimaryActionCommand}"
+                                IsVisible="{Binding IsPrimaryButtonSuccess}"
+                                Content="{Binding PrimaryActionLabel}" />
+                        <Button Classes="danger"
+                                Margin="0,0,8,6"
+                                Command="{Binding PrimaryActionCommand}"
+                                IsVisible="{Binding IsPrimaryButtonDanger}"
+                                Content="{Binding PrimaryActionLabel}" />
+
+                        <Button Classes="ghost"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding HasCli}"
+                                IsEnabled="{Binding CanOpenCli}"
+                                Command="{Binding OpenCliCommand}"
+                                Content="{Binding CliLabel}" />
+                        <Button Classes="ghost"
+                                Margin="0,0,6,6"
+                                IsEnabled="{Binding CanOpenConfig}"
+                                Command="{Binding OpenConfigCommand}"
+                                Content="{Binding ConfigFileName}" />
+                        <Button Classes="ghost"
+                                Margin="0,0,6,6"
+                                Command="{Binding OpenFolderCommand}"
+                                Content="Pasta" />
+                        <Button Classes="ghost"
+                                Margin="0,0,0,6"
+                                IsVisible="{Binding CanUninstallSelected}"
+                                Command="{Binding UninstallSelectedCommand}"
+                                Content="Remover" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid ColumnDefinitions="244,*">
+
+        <!-- ==================== SIDEBAR ==================== -->
+        <Border Grid.Column="0"
+                Background="#0F1624"
+                BorderBrush="#1E293B"
+                BorderThickness="0,0,1,0"
+                Padding="14,18">
+            <DockPanel LastChildFill="True">
+
+                <!-- Brand Header -->
+                <StackPanel DockPanel.Dock="Top" Margin="6,0,6,20" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Border Width="36" Height="36" CornerRadius="9" ClipToBounds="True" Background="#131B2E">
+                            <Image Source="avares://BEStart/Assets/be-start-icon.ico"
+                                   Width="36"
+                                   Height="36"
+                                   Stretch="UniformToFill" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="BE-Start"
+                                       FontSize="18.5"
+                                       FontWeight="Bold"
+                                       Foreground="#F8FAFC" />
+                            <TextBlock Text="SQL • NoSQL • PHP"
+                                       FontSize="11.5"
+                                       Foreground="#64748B" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Bottom Live Status Bar (All Services) & Terminal Shortcut -->
+                <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,12,0,0">
+                    <Border Background="#131B2E"
+                            BorderBrush="#1F2C45"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="11,10">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="STATUS RÁPIDO"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#64748B" />
+
+                            <ItemsControl ItemsSource="{Binding StatusBarServices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ServiceCardViewModel">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                            <Ellipse Grid.Column="0" Width="7" Height="7" Margin="0,0,7,0"
+                                                     VerticalAlignment="Center"
+                                                     Fill="{Binding State, Converter={x:Static conv:StatusConverters.StateToBrush}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding ShortName}"
+                                                       FontSize="11.5" Foreground="#E2E8F0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding State, Converter={x:Static conv:StatusConverters.StateToShortLabel}}"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Classes="secondary"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding OpenTerminalCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Width="14" Height="14"
+                                      Data="M2,4 L22,4 L22,20 L2,20 Z M5,9 L9,12 L5,15 M11,15 L17,15" />
+                            <TextBlock Text="Abrir Terminal" FontSize="12.5" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Navigation Buttons -->
+                <StackPanel Spacing="5">
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="0"
+                            Background="{Binding IsSqlTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsSqlTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M12,3 C7.58,3 4,4.79 4,7 L4,17 C4,19.21 7.58,21 12,21 C16.42,21 20,19.21 20,17 L20,7 C20,4.79 16.42,3 12,3 Z M12,5 C15.31,5 18,6.12 18,7 C18,7.88 15.31,9 12,9 C8.69,9 6,7.88 6,7 C6,6.12 8.69,5 12,5 Z" />
+                            <TextBlock Text="Bancos SQL" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="1"
+                            Background="{Binding IsNoSqlTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsNoSqlTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M4,6 L20,6 L20,10 L4,10 Z M4,14 L20,14 L20,18 L4,18 Z M6,7.5 L8,7.5 L8,8.5 L6,8.5 Z M6,15.5 L8,15.5 L8,16.5 L6,16.5 Z" />
+                            <TextBlock Text="Bancos NoSQL" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="2"
+                            Background="{Binding IsPhpTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsPhpTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M9.4,16.6 L4.8,12 L9.4,7.4 L8,6 L2,12 L8,18 Z M14.6,16.6 L19.2,12 L14.6,7.4 L16,6 L22,12 L16,18 Z" />
+                            <TextBlock Text="PHP" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="3"
+                            Background="{Binding IsLogsTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsLogsTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M4,5 L20,5 L20,7 L4,7 Z M4,11 L20,11 L20,13 L4,13 Z M4,17 L14,17 L14,19 L4,19 Z" />
+                            <TextBlock Text="Console de Logs" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            Command="{Binding SelectTabCommand}"
+                            CommandParameter="4"
+                            Background="{Binding IsSettingsTab, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                            Foreground="{Binding IsSettingsTab, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="16" Height="16"
+                                      Data="M12,15.5 C10.07,15.5 8.5,13.93 8.5,12 C8.5,10.07 10.07,8.5 12,8.5 C13.93,8.5 15.5,10.07 15.5,12 C15.5,13.93 13.93,15.5 12,15.5 Z M19.43,12.98 C19.47,12.66 19.5,12.34 19.5,12 C19.5,11.66 19.47,11.34 19.43,11.02 L21.54,9.37 L19.54,5.91 L17.05,6.91 C16.53,6.51 15.96,6.18 15.36,5.93 L14.98,3.28 L10.98,3.28 L10.6,5.93 C10,6.18 9.43,6.51 8.91,6.91 L6.42,5.91 L4.42,9.37 L6.53,11.02 C6.49,11.34 6.46,11.66 6.46,12 C6.46,12.34 6.49,12.66 6.53,12.98 L4.42,14.63 L6.42,18.09 L8.91,17.09 C9.43,17.49 10,17.82 10.6,18.07 L10.98,20.72 L14.98,20.72 L15.36,18.07 C15.96,17.82 16.53,17.49 17.05,17.09 L19.54,18.09 L21.54,14.63 Z" />
+                            <TextBlock Text="Configurações" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+            </DockPanel>
+        </Border>
+
+        <!-- ==================== MAIN CONTENT ==================== -->
+        <DockPanel Grid.Column="1" LastChildFill="True">
+
+            <!-- Top Action Bar -->
+            <Border DockPanel.Dock="Top"
+                    Background="#0D1322"
+                    BorderBrush="#1E293B"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,13">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="3">
+                        <TextBlock Text="BE-Start • Central de Controle"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#F8FAFC" />
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   TextTrimming="CharacterEllipsis" />
+                        <ProgressBar Minimum="0"
+                                     Maximum="100"
+                                     Height="4"
+                                     Margin="0,2,16,0"
+                                     IsVisible="{Binding IsDBeaverBusy}"
+                                     Value="{Binding DBeaverProgress}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="secondary"
+                                Command="{Binding RefreshCatalogCommandActionCommand}"
+                                IsEnabled="{Binding !IsLoadingCatalog}"
+                                Content="Atualizar Catálogo" />
+                        <Button Classes="success"
+                                Command="{Binding StartInstalledServicesCommand}"
+                                Content="Iniciar Instalados" />
+                        <Button Classes="primary"
+                                Command="{Binding StartOrUpdateDBeaverCommand}"
+                                IsEnabled="{Binding !IsDBeaverBusy}"
+                                Content="{Binding DBeaverButtonLabel}" />
+                        <Button Classes="danger"
+                                Command="{Binding StopAllCommand}"
+                                IsVisible="{Binding IsAnyServiceRunning}"
+                                Content="Parar Tudo" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Page Container -->
+            <Grid Margin="22,18">
+
+                <!-- ==================== TAB 0: BANCOS SQL ==================== -->
+                <ScrollViewer IsVisible="{Binding IsSqlTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="2" Margin="0,0,0,4">
+                            <TextBlock Text="Bancos de Dados SQL" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="PostgreSQL, MariaDB, MySQL e Microsoft SQL Server com IP local, porta configurável e seleção de versão."
+                                       FontSize="12.5" Foreground="#94A3B8" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding SqlServices}"
+                                      ItemTemplate="{StaticResource ServiceCardTemplate}"
+                                      Margin="0,0,-14,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================== TAB 1: BANCOS NOSQL ==================== -->
+                <ScrollViewer IsVisible="{Binding IsNoSqlTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="2" Margin="0,0,0,4">
+                            <TextBlock Text="Bancos de Dados NoSQL" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="MongoDB, Redis e Apache Cassandra otimizados para consumir o mínimo possível de memória RAM."
+                                       FontSize="12.5" Foreground="#94A3B8" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding NoSqlServices}"
+                                      ItemTemplate="{StaticResource ServiceCardTemplate}"
+                                      Margin="0,0,-14,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================== TAB 2: PHP + COMPOSER + PROJETOS ==================== -->
+                <ScrollViewer IsVisible="{Binding IsPhpTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="PHP 8.x, Composer 2.11.x &amp; Projetos (www)" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                            <TextBlock Text="Gerencie versões do PHP 8.x, instale o Composer 2.11.x junto e crie/abra seus projetos locais."
+                                       FontSize="12.5" Foreground="#94A3B8" />
+                        </StackPanel>
+
+                        <!-- PHP Card + Composer Card side by side -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+
+                            <!-- PHP Card -->
+                            <ContentControl Grid.Column="0"
+                                            Content="{Binding PhpCard}"
+                                            ContentTemplate="{StaticResource ServiceCardTemplate}"
+                                            Margin="0,0,-14,-14" />
+
+                            <!-- Composer 2.11.x Card -->
+                            <Border Grid.Column="1" Classes="card">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <Border Width="42" Height="42" CornerRadius="11" Background="#292018" Margin="0,0,12,0">
+                                            <TextBlock Text="CMP" FontSize="12" FontWeight="ExtraBold" Foreground="#FBBF24"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="PHP Composer" FontSize="15.5" FontWeight="Bold" Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding ComposerStatusDisplay}" FontSize="12" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" CornerRadius="99" Padding="10,4" VerticalAlignment="Center"
+                                                Background="#1F94A3B8">
+                                            <TextBlock Text="2.11.x" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24" />
+                                        </Border>
+                                    </Grid>
+
+                                    <CheckBox IsChecked="{Binding InstallComposerWithPhp}"
+                                              Content="Instalar Composer 2.11.x automaticamente junto com o PHP"
+                                              FontSize="12.5" Foreground="#CBD5E1" />
+
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <TextBlock Text="Versão" VerticalAlignment="Center" FontSize="12" Foreground="#94A3B8" />
+                                        <ComboBox Grid.Column="1"
+                                                  HorizontalAlignment="Stretch"
+                                                  ItemsSource="{Binding ComposerVersions}"
+                                                  SelectedItem="{Binding SelectedComposerVersion}"
+                                                  IsEnabled="{Binding !IsComposerInstalling}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="models:PackageRelease">
+                                                    <TextBlock Text="{Binding DropdownLabel}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsComposerInstalling}">
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding ComposerInstallProgress}" />
+                                        <TextBlock Text="{Binding ComposerProgressText}" FontSize="11.5" Foreground="#94A3B8" />
+                                    </StackPanel>
+
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Classes="primary"
+                                                Margin="0,0,8,0"
+                                                Command="{Binding InstallComposerCommand}"
+                                                IsEnabled="{Binding !IsComposerInstalling}"
+                                                Content="{Binding ComposerActionLabel}" />
+                                        <Button Classes="ghost"
+                                                IsVisible="{Binding IsComposerInstalled}"
+                                                Command="{Binding RemoveComposerCommand}"
+                                                Content="Remover" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Projects Manager directly inside PHP Tab -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="14">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Gestor de Projetos (www)" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+                                        <TextBlock Text="{Binding ProjectsDirectory}" FontSize="12" Foreground="#64748B" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button Classes="secondary" Command="{Binding OpenProjectsFolderCommand}" Content="Abrir Pasta www" />
+                                        <Button Classes="ghost" Command="{Binding RefreshProjectsCommand}" Content="Atualizar" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <TextBox Text="{Binding NewProjectName}"
+                                             PlaceholderText="Nome do novo projeto PHP (ex: api-rest, loja-virtual)..." />
+                                    <Button Grid.Column="1"
+                                            Classes="primary"
+                                            Command="{Binding CreateProjectCommand}"
+                                            Content="+ Criar Projeto PHP" />
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding Projects}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ProjectInfo">
+                                            <Border Background="#0D1322"
+                                                    BorderBrush="#1F2C45"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="14,10"
+                                                    Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                        <TextBlock Text="{Binding Url}" FontSize="12" Foreground="#818CF8" />
+                                                        <TextBlock Text="{Binding FullPath}" FontSize="11" Foreground="#64748B" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                        <Button Classes="primary"
+                                                                Padding="12,6"
+                                                                FontSize="12"
+                                                                Content="Abrir no Navegador"
+                                                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenProjectInBrowserCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Classes="secondary"
+                                                                Padding="12,6"
+                                                                FontSize="12"
+                                                                Content="Abrir Pasta"
+                                                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenProjectFolderCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ==================== TAB 3: CONSOLE DE LOGS ==================== -->
+                <Grid IsVisible="{Binding IsLogsTab}" RowDefinitions="Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Console de Logs" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <Button Classes="ghost" Command="{Binding SetLogFilterCommand}" CommandParameter="Todos"
+                                    Background="{Binding IsFilterAll, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterAll, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="Todos" />
+                            <Button Classes="ghost" Command="{Binding SetLogFilterCommand}" CommandParameter="BE-Start"
+                                    Background="{Binding IsFilterApp, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterApp, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="BE-Start" />
+                            <Button Classes="ghost" Command="{Binding SetLogFilterCommand}" CommandParameter="SQL"
+                                    Background="{Binding IsFilterSql, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterSql, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="SQL" />
+                            <Button Classes="ghost" Command="{Binding SetLogFilterCommand}" CommandParameter="NoSQL"
+                                    Background="{Binding IsFilterNoSql, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterNoSql, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="NoSQL" />
+                            <Button Classes="ghost" Command="{Binding SetLogFilterCommand}" CommandParameter="PHP"
+                                    Background="{Binding IsFilterPhp, Converter={x:Static conv:StatusConverters.BoolToNavBackground}}"
+                                    Foreground="{Binding IsFilterPhp, Converter={x:Static conv:StatusConverters.BoolToNavForeground}}"
+                                    Content="PHP" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="secondary" Command="{Binding ClearLogsCommand}" Content="Limpar Logs" />
+                    </Grid>
+
+                    <!-- Virtualized ListBox for minimal RAM usage -->
+                    <Border Grid.Row="1"
+                            Background="#090D16"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="8">
+                        <ListBox ItemsSource="{Binding FilteredLogs}"
+                                 Background="Transparent"
+                                 BorderThickness="0">
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem">
+                                    <Setter Property="Padding" Value="4,2" />
+                                    <Setter Property="MinHeight" Value="20" />
+                                </Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:LogEntry">
+                                    <Grid ColumnDefinitions="68,88,*">
+                                        <TextBlock Grid.Column="0" Text="{Binding FormattedTime}"
+                                                   FontFamily="Cascadia Mono, JetBrains Mono, Consolas, monospace"
+                                                   FontSize="12" Foreground="#475569" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Source}"
+                                                   FontFamily="Cascadia Mono, JetBrains Mono, Consolas, monospace"
+                                                   FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{Binding Source, Converter={x:Static conv:StatusConverters.LogSourceToBrush}}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Message}"
+                                                   FontFamily="Cascadia Mono, JetBrains Mono, Consolas, monospace"
+                                                   FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{Binding Level, Converter={x:Static conv:StatusConverters.LogLevelToBrush}}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </Grid>
+
+                <!-- ==================== TAB 4: CONFIGURAÇÕES ==================== -->
+                <ScrollViewer IsVisible="{Binding IsSettingsTab}" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16" MaxWidth="820" HorizontalAlignment="Left">
+
+                        <!-- Desktop & PATH Integration -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="{Binding DesktopIntegrationTitle}" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding DesktopIntegrationDescription}"
+                                           TextWrapping="Wrap" FontSize="12.5" Foreground="#94A3B8" />
+
+                                <Border Background="#0D1322" CornerRadius="10" Padding="12">
+                                    <TextBlock Text="{Binding PathStatusSummary}" FontSize="12.5" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                                </Border>
+
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Classes="primary" Margin="0,0,10,8" Command="{Binding ConfigureUserPathCommand}" Content="Adicionar Runtimes ao PATH" />
+                                    <Button Classes="secondary" Margin="0,0,10,8" Command="{Binding CreateDesktopShortcutsCommand}" Content="Criar Atalhos na Área de Trabalho" />
+                                    <Button Classes="ghost" Margin="0,0,10,8" IsVisible="{Binding IsWindows}" Command="{Binding OpenVcRedistDownloadCommand}" Content="Baixar VC++ Redistributable x64" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Directories & Service Ports -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Diretórios e Portas Locais" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="Pasta Base de Instalação (runtimes e dados)" FontSize="12.5" Foreground="#94A3B8" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Text="{Binding BaseDirectory}" />
+                                        <Button Grid.Column="1" Classes="secondary" Content="Escolher..." Click="OnBrowseBaseDirClick" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="Pasta de Projetos PHP (Document Root / www)" FontSize="12.5" Foreground="#94A3B8" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Text="{Binding ProjectsDirectory}" />
+                                        <Button Grid.Column="1" Classes="secondary" Content="Escolher..." Click="OnBrowseProjectsDirClick" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Host PHP" FontSize="12" Foreground="#94A3B8" />
+                                        <TextBox Text="{Binding PhpHost}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="Porta PHP" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding PhpPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Porta PostgreSQL" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding PostgreSqlPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Porta MariaDB" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding MariaDbPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="Porta MySQL" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding MySqlPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Porta SQL Server" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding SqlServerPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Porta MongoDB" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding MongoDbPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="Porta Redis" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding RedisPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Porta Cassandra" FontSize="12" Foreground="#94A3B8" />
+                                        <NumericUpDown Value="{Binding CassandraPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="8" Margin="0,4,0,0">
+                                    <CheckBox IsChecked="{Binding AutoConfigurePath}" Content="Atualizar PATH do usuário automaticamente ao instalar ou trocar versões" />
+                                    <CheckBox IsChecked="{Binding AutoCreateDesktopShortcut}" Content="Criar atalhos na Área de Trabalho automaticamente" />
+                                    <CheckBox IsChecked="{Binding AutoStartServicesOnLaunch}" Content="Iniciar serviços instalados automaticamente ao abrir o BE-Start" />
+                                </StackPanel>
+
+                                <Button Classes="success"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding SaveSettingsCommand}"
+                                        Content="Salvar Configurações" />
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </Grid>
+        </DockPanel>
+    </Grid>
+</Window>

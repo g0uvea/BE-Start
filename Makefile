@@ -1,6 +1,6 @@
-APP_NAME := PHPost
-PROJECT := src/PHPost/PHPost.csproj
-VERSION ?= 1.1.0
+APP_NAME := BEStart
+PROJECT := BEStart/BEStart.csproj
+VERSION ?= 2.0.0
 R2R ?= false
 
 ifeq ($(OS),Windows_NT)
@@ -52,12 +52,12 @@ SINGLE_FILE_FLAGS := -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfE
 all: standalone
 
 help:
-	@echo PHPost - Comandos de compilacao multiplataforma (Makefile)
+	@echo BE-Start - Comandos de compilacao multiplataforma (Makefile)
 	@$(ECHO_EMPTY)
 	@echo Desenvolvimento:
 	@echo   make restore               Restaura pacotes NuGet
 	@echo   make build                 Compila em modo Debug
-	@echo   make run                   Executa o PHPost em modo desenvolvimento
+	@echo   make run                   Executa o BE-Start em modo desenvolvimento
 	@echo   make clean                 Remove bin/, obj/ e dist/
 	@$(ECHO_EMPTY)
 	@echo Compilacao Self-Contained (NAO exige .NET instalado no usuario):
@@ -77,7 +77,7 @@ help:
 	@echo   make release-all-platforms Gera releases para Windows, Linux e macOS
 	@$(ECHO_EMPTY)
 	@echo Variaveis opcionais:
-	@echo   VERSION=1.1.0              Define a versao do executavel e do .zip (padrao: $(VERSION))
+	@echo   VERSION=2.0.0              Define a versao do executavel e do .zip (padrao: $(VERSION))
 	@echo   RID=win-x64                Runtime Identifier alvo (padrao detectado: $(DEFAULT_RID))
 	@echo   R2R=true                   Ativa ReadyToRun para inicializacao mais rapida (padrao: $(R2R))
 
@@ -141,7 +141,7 @@ release-all-platforms: release-win-x64 release-linux-x64 release-linux-arm64 rel
 clean:
 	@echo Limpando artefatos de compilacao...
 	dotnet clean $(PROJECT)
-	@$(call RM_DIR,src/PHPost/bin)
-	@$(call RM_DIR,src/PHPost/obj)
+	@$(call RM_DIR,BEStart/bin)
+	@$(call RM_DIR,BEStart/obj)
 	@$(call RM_DIR,$(DIST_DIR))
 	@echo Limpeza concluida.

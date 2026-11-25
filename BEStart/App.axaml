@@ -1,0 +1,138 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BEStart.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Window">
+            <Setter Property="Background" Value="#0B0F19" />
+            <Setter Property="Foreground" Value="#F1F5F9" />
+            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
+        </Style>
+
+        <!-- Primary Indigo Button -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#6366F1" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#818CF8" />
+        </Style>
+
+        <!-- Success Green Button -->
+        <Style Selector="Button.success">
+            <Setter Property="Background" Value="#16A34A" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.success:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#22C55E" />
+        </Style>
+
+        <!-- Danger Red Button -->
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#EF4444" />
+        </Style>
+
+        <!-- Secondary Subtle Button -->
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#283548" />
+            <Setter Property="BorderBrush" Value="#475569" />
+        </Style>
+
+        <!-- Ghost Small Action Button -->
+        <Style Selector="Button.ghost">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="BorderBrush" Value="#263348" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
+        </Style>
+
+        <!-- Sidebar Navigation Button -->
+        <Style Selector="Button.nav">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#192338" />
+        </Style>
+
+        <!-- Card Border -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#131B2E" />
+            <Setter Property="BorderBrush" Value="#1F2C45" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="18" />
+        </Style>
+
+        <!-- Dark Form Controls -->
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#0D1322" />
+            <Setter Property="BorderBrush" Value="#263348" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="12,9" />
+        </Style>
+
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#0D1322" />
+            <Setter Property="BorderBrush" Value="#263348" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="#0D1322" />
+            <Setter Property="BorderBrush" Value="#263348" />
+            <Setter Property="CornerRadius" Value="9" />
+        </Style>
+
+        <Style Selector="ProgressBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="Foreground" Value="#6366F1" />
+        </Style>
+    </Application.Styles>
+</Application>

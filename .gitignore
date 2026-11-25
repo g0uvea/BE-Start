@@ -83,6 +83,11 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# Local runtime cache / partial downloads
+catalog-cache.json
+*.part
+BEStartData/
+
 # OS generated files
 Thumbs.db
 Thumbs.db:encryptable
