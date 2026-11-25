@@ -1,0 +1,143 @@
+name: Release Multiplataforma (Windows, Linux & macOS)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag da Release no GitHub (ex: v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+        type: string
+      prerelease:
+        description: 'Marcar como Pre-release?'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            archive_ext: zip
+          - rid: win-arm64
+            os: windows-latest
+            archive_ext: zip
+          - rid: linux-x64
+            os: ubuntu-latest
+            archive_ext: tar.gz
+          - rid: linux-arm64
+            os: ubuntu-latest
+            archive_ext: tar.gz
+          - rid: osx-arm64
+            os: macos-latest
+            archive_ext: tar.gz
+          - rid: osx-x64
+            os: macos-latest
+            archive_ext: tar.gz
+
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Definir versão e tag
+        id: meta
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}".StartsWith("refs/tags/")) {
+            $tag = "${{ github.ref_name }}"
+          } else {
+            $tag = "${{ inputs.tag_name }}"
+          }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v2.0.0" }
+          $ver = $tag.TrimStart('v', 'V')
+          if ($ver -notmatch '^\d+\.\d+\.\d+') { $ver = "2.0.0" }
+          "tag_name=$tag" >> $env:GITHUB_OUTPUT
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Restaurar dependências
+        run: dotnet restore BEStart/BEStart.csproj
+
+      - name: Publicar executável 100% portátil (${{ matrix.rid }})
+        run: >
+          dotnet publish BEStart/BEStart.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          -p:Version=${{ steps.meta.outputs.version }}
+          -o publish_out
+
+      - name: Empacotar Windows (.zip)
+        if: matrix.archive_ext == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist_artifacts | Out-Null
+          $dest = "dist_artifacts/BEStart-${{ steps.meta.outputs.version }}-${{ matrix.rid }}-portable.zip"
+          Compress-Archive -Path "publish_out/*" -DestinationPath $dest -CompressionLevel Optimal
+
+      - name: Empacotar Linux/macOS (.tar.gz preservando permissão +x)
+        if: matrix.archive_ext == 'tar.gz'
+        shell: bash
+        run: |
+          mkdir -p dist_artifacts
+          chmod +x publish_out/BEStart
+          tar -czf "dist_artifacts/BEStart-${{ steps.meta.outputs.version }}-${{ matrix.rid }}-portable.tar.gz" -C publish_out .
+
+      - name: Enviar artefato do job
+        uses: actions/upload-artifact@v4
+        with:
+          name: bestart-${{ matrix.rid }}
+          path: dist_artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publicar Release no GitHub
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar todos os artefatos
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          merge-multiple: true
+
+      - name: Gerar checksums SHA-256
+        shell: bash
+        run: |
+          cd release_assets
+          sha256sum * > SHA256SUMS.txt
+          ls -lh
+
+      - name: Criar/Atualizar GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag_name }}
+          name: BE-Start ${{ needs.build.outputs.tag_name }}
+          generate_release_notes: true
+          prerelease: ${{ inputs.prerelease || false }}
+          files: release_assets/*
