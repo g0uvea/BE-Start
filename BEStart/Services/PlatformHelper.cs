@@ -1,11 +1,16 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace BEStart.Services;
 
 public static class PlatformHelper
 {
+    private static readonly ConcurrentDictionary<string, string> WindowsSafeDirCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// UTF-8 encoding WITHOUT Byte Order Mark (BOM).
     /// Critical for my.ini/my.cnf, postgresql.conf, php.ini, and generated .php files.
@@ -61,6 +66,176 @@ public static class PlatformHelper
         }
 
         return Path.Combine(AppContext.BaseDirectory, "BEStartData");
+    }
+
+    public static bool IsAsciiWithoutSpaces(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return true;
+
+        foreach (var ch in path)
+        {
+            if (ch > 127 || ch == ' ')
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// On Windows, native database engines (PostgreSQL initdb, MySQL, Redis/MSYS2, MongoDB, Cassandra, PHP/cmd.exe)
+    /// often fail when paths contain non-ASCII characters (e.g. "João") or spaces.
+    /// This maps such directories through a transparent NTFS Directory Junction under an ASCII-only root
+    /// (requiring no Administrator privileges) so all files remain in place while tools see a clean ASCII path.
+    /// </summary>
+    public static string EnsureWindowsSafePath(string path, string? preferredAnchorDir = null, bool isDirectory = false)
+    {
+        if (!IsWindows || string.IsNullOrWhiteSpace(path) || IsAsciiWithoutSpaces(path))
+            return path;
+
+        var fullPath = Path.GetFullPath(path);
+
+        if (!string.IsNullOrWhiteSpace(preferredAnchorDir))
+        {
+            var fullAnchor = Path.GetFullPath(preferredAnchorDir).TrimEnd('\\', '/');
+            if (IsSubPathOf(fullPath, fullAnchor))
+            {
+                var rel = Path.GetRelativePath(fullAnchor, fullPath);
+                if (rel == ".")
+                    return EnsureWindowsSafeDirectory(fullAnchor);
+
+                if (IsAsciiWithoutSpaces(rel))
+                {
+                    var safeAnchor = EnsureWindowsSafeDirectory(fullAnchor);
+                    return Path.Combine(safeAnchor, rel);
+                }
+            }
+        }
+
+        if (isDirectory || Directory.Exists(fullPath))
+            return EnsureWindowsSafeDirectory(fullPath);
+
+        var parentDir = Path.GetDirectoryName(fullPath);
+        var fileName = Path.GetFileName(fullPath);
+        if (!string.IsNullOrWhiteSpace(parentDir) && !string.IsNullOrWhiteSpace(fileName))
+            return Path.Combine(EnsureWindowsSafeDirectory(parentDir), fileName);
+
+        return fullPath;
+    }
+
+    public static string EnsureWindowsSafeDirectory(string dirPath)
+    {
+        if (!IsWindows || string.IsNullOrWhiteSpace(dirPath) || IsAsciiWithoutSpaces(dirPath))
+            return dirPath;
+
+        var fullDir = Path.GetFullPath(dirPath).TrimEnd('\\', '/');
+        if (WindowsSafeDirCache.TryGetValue(fullDir, out var cached) && Directory.Exists(cached))
+            return cached;
+
+        try
+        {
+            Directory.CreateDirectory(fullDir);
+            var linkRoot = GetWindowsAsciiLinkRoot();
+            Directory.CreateDirectory(linkRoot);
+
+            var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(fullDir.ToLowerInvariant()));
+            var hash = Convert.ToHexString(hashBytes)[..10].ToLowerInvariant();
+            var linkPath = Path.Combine(linkRoot, $"d_{hash}");
+
+            if (Directory.Exists(linkPath))
+            {
+                var info = new DirectoryInfo(linkPath);
+                var existingTarget = info.LinkTarget?.TrimEnd('\\', '/');
+                if (existingTarget is not null &&
+                    existingTarget.StartsWith(@"\\?\", StringComparison.Ordinal))
+                {
+                    existingTarget = existingTarget[4..];
+                }
+
+                if (string.Equals(existingTarget, fullDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    WindowsSafeDirCache[fullDir] = linkPath;
+                    return linkPath;
+                }
+
+                // Stale junction pointing elsewhere — remove only the junction reparse point
+                RemoveWindowsJunction(linkPath);
+            }
+
+            if (CreateWindowsJunction(linkPath, fullDir) && Directory.Exists(linkPath))
+            {
+                WindowsSafeDirCache[fullDir] = linkPath;
+                return linkPath;
+            }
+        }
+        catch
+        {
+            // Fall back to original path if junction creation fails
+        }
+
+        return fullDir;
+    }
+
+    private static string GetWindowsAsciiLinkRoot()
+    {
+        var publicDir = Environment.GetEnvironmentVariable("PUBLIC");
+        if (!string.IsNullOrWhiteSpace(publicDir) && IsAsciiWithoutSpaces(publicDir) && Directory.Exists(publicDir))
+            return Path.Combine(publicDir, "BEStartLinks");
+
+        var sysDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
+        return Path.Combine(sysDrive, "BEStartLinks");
+    }
+
+    private static bool IsSubPathOf(string candidatePath, string baseDir)
+    {
+        var normalizedCandidate = candidatePath.TrimEnd('\\', '/');
+        if (string.Equals(normalizedCandidate, baseDir, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return normalizedCandidate.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+               normalizedCandidate.StartsWith(baseDir + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CreateWindowsJunction(string linkPath, string targetDir)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c mklink /J \"{linkPath}\" \"{targetDir}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return false;
+            proc.WaitForExit(5000);
+            return proc.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void RemoveWindowsJunction(string linkPath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c rmdir \"{linkPath}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(3000);
+        }
+        catch { }
     }
 
     public static string ResolveMySqlStyleConfigPath(string dataDir)

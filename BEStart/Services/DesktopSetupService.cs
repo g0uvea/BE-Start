@@ -80,7 +80,14 @@ public sealed class DesktopSetupService
                 .ToList();
 
             var runtimesPrefix = NormalizePath(settings.RuntimesDirectory);
-            entries.RemoveAll(e => NormalizePath(e).StartsWith(runtimesPrefix, StringComparison.OrdinalIgnoreCase));
+            var safeRuntimesPrefix = NormalizePath(
+                PlatformHelper.EnsureWindowsSafePath(settings.RuntimesDirectory, settings.BaseDirectory, isDirectory: true));
+            entries.RemoveAll(e =>
+            {
+                var norm = NormalizePath(e);
+                return norm.StartsWith(runtimesPrefix, StringComparison.OrdinalIgnoreCase) ||
+                       norm.StartsWith(safeRuntimesPrefix, StringComparison.OrdinalIgnoreCase);
+            });
 
             var activeBins = CollectInstalledServiceBins(settings);
             if (activeBins.Count == 0)
@@ -440,11 +447,12 @@ Categories=Development;WebDevelopment;
         {
             if (PlatformHelper.IsWindows)
             {
+                var safeExe = PlatformHelper.EnsureWindowsSafePath(exe, settings.BaseDirectory);
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = exe,
+                    FileName = safeExe,
                     Arguments = args,
-                    WorkingDirectory = Path.GetDirectoryName(exe) ?? settings.ProjectsDirectory,
+                    WorkingDirectory = Path.GetDirectoryName(safeExe) ?? settings.ProjectsDirectory,
                     UseShellExecute = true
                 });
             }
@@ -569,7 +577,10 @@ Categories=Development;WebDevelopment;
             var dir = settings.GetInstallDirectory(desc.Kind, ver);
             var bin = InstallerService.GetServiceBinDirectory(desc.Kind, dir);
             if (!string.IsNullOrWhiteSpace(bin) && Directory.Exists(bin))
-                list.Add((desc.ShortName, bin));
+            {
+                var safeBin = PlatformHelper.EnsureWindowsSafePath(bin, settings.BaseDirectory, isDirectory: true);
+                list.Add((desc.ShortName, safeBin));
+            }
         }
         return list;
     }
