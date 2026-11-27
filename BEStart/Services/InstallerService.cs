@@ -165,7 +165,10 @@ public sealed partial class InstallerService
 
         if (PlatformHelper.IsWindows)
         {
-            var phpCmd = phpExe is not null ? $"\"{phpExe}\"" : "php";
+            var safePhpExe = phpExe is not null
+                ? PlatformHelper.EnsureWindowsSafePath(phpExe, settings.BaseDirectory)
+                : null;
+            var phpCmd = safePhpExe is not null ? $"\"{safePhpExe}\"" : "php";
             var batContent = $"@echo off\r\n{phpCmd} \"%~dp0composer.phar\" %*\r\n";
             File.WriteAllText(Path.Combine(targetDir, "composer.bat"), batContent, PlatformHelper.Utf8NoBom);
         }
@@ -303,7 +306,7 @@ public sealed partial class InstallerService
         {
             case ServiceKind.Php:
                 progress?.Report(new InstallProgress(92, "Configurando php.ini e extensões..."));
-                ConfigurePhpIni(targetDir);
+                ConfigurePhpIni(targetDir, settings.BaseDirectory);
                 break;
 
             case ServiceKind.MariaDb:
@@ -341,7 +344,7 @@ public sealed partial class InstallerService
 
     // ==================== SERVICE CONFIGURATIONS (LOW RAM) ====================
 
-    public void ConfigurePhpIni(string phpDir)
+    public void ConfigurePhpIni(string phpDir, string? anchorDir = null)
     {
         var iniPath = Path.Combine(phpDir, "php.ini");
         if (!PlatformHelper.IsWindows)
@@ -376,14 +379,20 @@ date.timezone = America/Sao_Paulo
         }
 
         var content = File.ReadAllText(iniPath, Encoding.UTF8).TrimStart('\uFEFF');
-        var extDirRegex = new Regex(@"^\s*;?\s*extension_dir\s*=\s*""ext""\s*$", RegexOptions.Multiline);
-        if (extDirRegex.IsMatch(content))
-            content = extDirRegex.Replace(content, @"extension_dir = ""ext""", 1);
-        else if (!Regex.IsMatch(content, @"^extension_dir\s*=", RegexOptions.Multiline))
-            content += Environment.NewLine + @"extension_dir = ""ext""" + Environment.NewLine;
+        var extDir = Path.Combine(phpDir, "ext");
+        var safeExtDir = PlatformHelper.EnsureWindowsSafePath(extDir, anchorDir, isDirectory: true).Replace('\\', '/');
+        var extDirLine = $"extension_dir = \"{safeExtDir}\"";
+
+        var activeExtDirRegex = new Regex(@"^\s*extension_dir\s*=.*$", RegexOptions.Multiline);
+        var commentedExtDirRegex = new Regex(@"^\s*;\s*extension_dir\s*=\s*""ext""\s*$", RegexOptions.Multiline);
+        if (activeExtDirRegex.IsMatch(content))
+            content = activeExtDirRegex.Replace(content, extDirLine, 1);
+        else if (commentedExtDirRegex.IsMatch(content))
+            content = commentedExtDirRegex.Replace(content, extDirLine, 1);
+        else
+            content += Environment.NewLine + extDirLine + Environment.NewLine;
 
         string[] desiredExtensions = ["curl", "fileinfo", "gd", "intl", "mbstring", "mysqli", "openssl", "pdo_mysql", "pdo_pgsql", "pgsql", "zip"];
-        var extDir = Path.Combine(phpDir, "ext");
 
         foreach (var ext in desiredExtensions)
         {
@@ -410,8 +419,10 @@ date.timezone = America/Sao_Paulo
 
     public async Task EnsureMariaDbInitializedAsync(string mariaDbDir, AppSettings settings, CancellationToken ct = default)
     {
-        var effectiveDir = ResolveEffectiveRuntimeDirectory(mariaDbDir);
-        var dataDir = settings.GetDataDirectory(ServiceKind.MariaDb);
+        var effectiveDir = PlatformHelper.EnsureWindowsSafePath(
+            ResolveEffectiveRuntimeDirectory(mariaDbDir), settings.BaseDirectory, isDirectory: true);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.MariaDb), settings.BaseDirectory, isDirectory: true);
         var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(dataDir);
         var port = settings.GetPort(ServiceKind.MariaDb);
 
@@ -459,16 +470,18 @@ date.timezone = America/Sao_Paulo
 
     public async Task EnsureMySqlInitializedAsync(string mysqlDir, AppSettings settings, CancellationToken ct = default)
     {
-        var effectiveDir = ResolveEffectiveRuntimeDirectory(mysqlDir);
-        var dataDir = settings.GetDataDirectory(ServiceKind.MySql);
+        var effectiveDir = PlatformHelper.EnsureWindowsSafePath(
+            ResolveEffectiveRuntimeDirectory(mysqlDir), settings.BaseDirectory, isDirectory: true);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.MySql), settings.BaseDirectory, isDirectory: true);
         var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(dataDir);
         var port = settings.GetPort(ServiceKind.MySql);
 
-        SyncMySqlStyleConfig(configPath, effectiveDir, dataDir, port, settings.GetMySqlSocketPath(), isMySql8: true);
-
         if (!Directory.Exists(Path.Combine(dataDir, "mysql")))
         {
-            Directory.CreateDirectory(dataDir);
+            // mysqld --initialize-insecure aborts if dataDir contains any leftover files (e.g. a premature my.ini)
+            PrepareEmptyDataDirectory(dataDir);
+
             var mysqldExe = FindServiceExecutable(ServiceKind.MySql, effectiveDir)
                 ?? throw new FileNotFoundException("mysqld não encontrado.");
 
@@ -484,28 +497,40 @@ date.timezone = America/Sao_Paulo
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.ArgumentList.Add("--no-defaults");
             psi.ArgumentList.Add("--initialize-insecure");
             psi.ArgumentList.Add($"--basedir={effectiveDir.Replace('\\', '/')}");
             psi.ArgumentList.Add($"--datadir={dataDir.Replace('\\', '/')}");
 
             using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Falha ao inicializar MySQL.");
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
             var stderrTask = proc.StandardError.ReadToEndAsync(ct);
             await proc.WaitForExitAsync(ct);
+            var stdout = await stdoutTask;
             var stderr = await stderrTask;
             if (proc.ExitCode != 0)
-                throw new InvalidOperationException($"mysqld --initialize-insecure falhou ({proc.ExitCode}): {stderr.Trim()}");
+            {
+                var detail = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : stdout.Trim();
+                throw new InvalidOperationException($"mysqld --initialize-insecure falhou ({proc.ExitCode}): {detail}");
+            }
         }
+
+        SyncMySqlStyleConfig(configPath, effectiveDir, dataDir, port, settings.GetMySqlSocketPath(), isMySql8: true);
     }
 
     public async Task EnsurePostgreSqlInitializedAsync(string pgDir, AppSettings settings, CancellationToken ct = default)
     {
-        var effectiveDir = ResolveEffectiveRuntimeDirectory(pgDir);
-        var dataDir = settings.GetDataDirectory(ServiceKind.PostgreSql);
+        var effectiveDir = PlatformHelper.EnsureWindowsSafePath(
+            ResolveEffectiveRuntimeDirectory(pgDir), settings.BaseDirectory, isDirectory: true);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.PostgreSql), settings.BaseDirectory, isDirectory: true);
         var port = settings.GetPort(ServiceKind.PostgreSql);
 
         if (!File.Exists(Path.Combine(dataDir, "PG_VERSION")))
         {
-            Directory.CreateDirectory(dataDir);
+            // initdb fails if dataDir exists and has residual files from a previous failed attempt
+            PrepareEmptyDataDirectory(dataDir);
+
             var initDbExe = FindServiceTool(ServiceKind.PostgreSql, effectiveDir, "initdb")
                 ?? throw new FileNotFoundException("initdb não encontrado no PostgreSQL.");
 
@@ -521,6 +546,7 @@ date.timezone = America/Sao_Paulo
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.Environment["LC_MESSAGES"] = "C";
             psi.ArgumentList.Add("-D"); psi.ArgumentList.Add(dataDir);
             psi.ArgumentList.Add("-U"); psi.ArgumentList.Add("postgres");
             psi.ArgumentList.Add("-A"); psi.ArgumentList.Add("trust");
@@ -528,11 +554,16 @@ date.timezone = America/Sao_Paulo
             psi.ArgumentList.Add("--locale=C");
 
             using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Falha ao executar initdb.");
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
             var stderrTask = proc.StandardError.ReadToEndAsync(ct);
             await proc.WaitForExitAsync(ct);
+            var stdout = await stdoutTask;
             var stderr = await stderrTask;
             if (proc.ExitCode != 0)
-                throw new InvalidOperationException($"initdb falhou ({proc.ExitCode}): {stderr.Trim()}");
+            {
+                var detail = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : stdout.Trim();
+                throw new InvalidOperationException($"initdb falhou ({proc.ExitCode}): {detail}");
+            }
         }
 
         // Low-RAM PostgreSQL tuning
@@ -551,7 +582,8 @@ date.timezone = America/Sao_Paulo
 
     public static void EnsureMongoDbInitialized(AppSettings settings)
     {
-        var dataDir = settings.GetDataDirectory(ServiceKind.MongoDb);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.MongoDb), settings.BaseDirectory, isDirectory: true);
         Directory.CreateDirectory(dataDir);
         var cfgPath = Path.Combine(dataDir, "mongod.cfg");
         var port = settings.GetPort(ServiceKind.MongoDb);
@@ -570,14 +602,16 @@ net:
 
     public static void EnsureRedisInitialized(AppSettings settings)
     {
-        var dataDir = settings.GetDataDirectory(ServiceKind.Redis);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.Redis), settings.BaseDirectory, isDirectory: true);
         Directory.CreateDirectory(dataDir);
         var confPath = Path.Combine(dataDir, "redis.conf");
         var port = settings.GetPort(ServiceKind.Redis);
+        // Using "dir ." with WorkingDirectory = dataDir avoids MSYS2/Cygwin vs Windows drive-letter path issues
         var conf = $"""
 bind 127.0.0.1
 port {port}
-dir "{dataDir.Replace('\\', '/')}"
+dir .
 maxmemory 128mb
 maxmemory-policy allkeys-lru
 save ""
@@ -587,26 +621,32 @@ save ""
 
     public void EnsureCassandraInitialized(string cassandraDir, AppSettings settings)
     {
-        var dataDir = settings.GetDataDirectory(ServiceKind.Cassandra);
+        var effectiveDir = PlatformHelper.EnsureWindowsSafePath(
+            ResolveEffectiveRuntimeDirectory(cassandraDir), settings.BaseDirectory, isDirectory: true);
+        var dataDir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetDataDirectory(ServiceKind.Cassandra), settings.BaseDirectory, isDirectory: true);
         Directory.CreateDirectory(dataDir);
         Directory.CreateDirectory(Path.Combine(dataDir, "data"));
         Directory.CreateDirectory(Path.Combine(dataDir, "commitlog"));
         Directory.CreateDirectory(Path.Combine(dataDir, "saved_caches"));
         Directory.CreateDirectory(Path.Combine(dataDir, "hints"));
+        Directory.CreateDirectory(Path.Combine(dataDir, "logs"));
 
-        var confDir = Path.Combine(cassandraDir, "conf");
+        var confDir = Path.Combine(effectiveDir, "conf");
         var yamlPath = Path.Combine(confDir, "cassandra.yaml");
         var port = settings.GetPort(ServiceKind.Cassandra);
 
         if (File.Exists(yamlPath))
         {
             var yaml = File.ReadAllText(yamlPath, Encoding.UTF8).TrimStart('\uFEFF');
+            var dataSubDir = Path.Combine(dataDir, "data").Replace('\\', '/');
             yaml = ReplaceYamlScalar(yaml, "listen_address", "127.0.0.1");
             yaml = ReplaceYamlScalar(yaml, "rpc_address", "127.0.0.1");
             yaml = ReplaceYamlScalar(yaml, "native_transport_port", port.ToString());
-            yaml = ReplaceYamlScalar(yaml, "commitlog_directory", Path.Combine(dataDir, "commitlog").Replace('\\', '/'));
-            yaml = ReplaceYamlScalar(yaml, "saved_caches_directory", Path.Combine(dataDir, "saved_caches").Replace('\\', '/'));
-            yaml = ReplaceYamlScalar(yaml, "hints_directory", Path.Combine(dataDir, "hints").Replace('\\', '/'));
+            yaml = ReplaceYamlScalar(yaml, "commitlog_directory", $"\"{Path.Combine(dataDir, "commitlog").Replace('\\', '/')}\"");
+            yaml = ReplaceYamlScalar(yaml, "saved_caches_directory", $"\"{Path.Combine(dataDir, "saved_caches").Replace('\\', '/')}\"");
+            yaml = ReplaceYamlScalar(yaml, "hints_directory", $"\"{Path.Combine(dataDir, "hints").Replace('\\', '/')}\"");
+            yaml = ReplaceYamlListSingleItem(yaml, "data_file_directories", $"\"{dataSubDir}\"");
             File.WriteAllText(yamlPath, yaml, PlatformHelper.Utf8NoBom);
         }
 
@@ -623,6 +663,28 @@ save ""
             if (!text.Contains("-Xms256M", StringComparison.Ordinal))
                 text += "\n-Xms256M\n-Xmx512M\n";
             File.WriteAllText(optPath, text, PlatformHelper.Utf8NoBom);
+        }
+    }
+
+    private static void PrepareEmptyDataDirectory(string dataDir)
+    {
+        if (Directory.Exists(dataDir))
+        {
+            foreach (var entry in Directory.GetFileSystemEntries(dataDir))
+            {
+                try
+                {
+                    if (Directory.Exists(entry))
+                        Directory.Delete(entry, recursive: true);
+                    else
+                        File.Delete(entry);
+                }
+                catch { }
+            }
+        }
+        else
+        {
+            Directory.CreateDirectory(dataDir);
         }
     }
 
@@ -1121,5 +1183,14 @@ save ""
         return regex.IsMatch(yaml)
             ? regex.Replace(yaml, $"{key}: {value}", 1)
             : yaml + $"{Environment.NewLine}{key}: {value}";
+    }
+
+    private static string ReplaceYamlListSingleItem(string yaml, string key, string itemValue)
+    {
+        var replacement = $"{key}:{Environment.NewLine}    - {itemValue}";
+        var regex = new Regex($@"^\s*#?\s*{Regex.Escape(key)}\s*:\s*(?:\r?\n\s*#?\s*-\s*.*)+", RegexOptions.Multiline);
+        return regex.IsMatch(yaml)
+            ? regex.Replace(yaml, replacement, 1)
+            : yaml + $"{Environment.NewLine}{replacement}";
     }
 }

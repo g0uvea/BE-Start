@@ -131,7 +131,7 @@ public sealed class ProcessManagerService : IDisposable
             _processes[kind] = process;
 
             var host = kind == ServiceKind.Php ? settings.PhpHost : "127.0.0.1";
-            var timeout = kind == ServiceKind.Cassandra ? TimeSpan.FromSeconds(18) : TimeSpan.FromSeconds(8);
+            var timeout = kind == ServiceKind.Cassandra ? TimeSpan.FromSeconds(25) : TimeSpan.FromSeconds(15);
             var ready = await WaitForPortListeningAsync(host, port, process, timeout);
 
             if (process.HasExited)
@@ -248,7 +248,8 @@ public sealed class ProcessManagerService : IDisposable
 
     private async Task<ProcessStartInfo> BuildProcessStartInfoAsync(ServiceKind kind, string installDir, AppSettings settings)
     {
-        var effectiveDir = InstallerService.ResolveEffectiveRuntimeDirectory(installDir);
+        var effectiveDir = PlatformHelper.EnsureWindowsSafePath(
+            InstallerService.ResolveEffectiveRuntimeDirectory(installDir), settings.BaseDirectory, isDirectory: true);
         var port = settings.GetPort(kind);
 
         switch (kind)
@@ -256,20 +257,31 @@ public sealed class ProcessManagerService : IDisposable
             case ServiceKind.Php:
             {
                 Directory.CreateDirectory(settings.ProjectsDirectory);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
+                _installer.ConfigurePhpIni(effectiveDir, settings.BaseDirectory);
+                var safeProjectsDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.ProjectsDirectory, settings.BaseDirectory, isDirectory: true);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
                 var ini = Path.Combine(effectiveDir, "php.ini");
-                var psi = CreateBasePsi(exe, settings.ProjectsDirectory);
+                var psi = CreateBasePsi(exe, safeProjectsDir);
+                if (PlatformHelper.IsWindows)
+                {
+                    var phpDir = Path.GetDirectoryName(exe)!;
+                    var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                    psi.Environment["PATH"] = $"{phpDir};{existingPath}";
+                }
                 if (File.Exists(ini)) { psi.ArgumentList.Add("-c"); psi.ArgumentList.Add(ini); }
                 psi.ArgumentList.Add("-S"); psi.ArgumentList.Add($"{settings.PhpHost}:{port}");
-                psi.ArgumentList.Add("-t"); psi.ArgumentList.Add(settings.ProjectsDirectory);
+                psi.ArgumentList.Add("-t"); psi.ArgumentList.Add(safeProjectsDir);
                 return psi;
             }
 
             case ServiceKind.MariaDb:
             {
-                await _installer.EnsureMariaDbInitializedAsync(installDir, settings);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
-                var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(settings.GetDataDirectory(kind));
+                await _installer.EnsureMariaDbInitializedAsync(effectiveDir, settings);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
+                var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(dataDir);
                 var psi = CreateBasePsi(exe, Path.GetDirectoryName(exe)!);
                 psi.ArgumentList.Add($"--defaults-file={configPath}");
                 psi.ArgumentList.Add($"--port={port}");
@@ -280,9 +292,11 @@ public sealed class ProcessManagerService : IDisposable
 
             case ServiceKind.MySql:
             {
-                await _installer.EnsureMySqlInitializedAsync(installDir, settings);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
-                var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(settings.GetDataDirectory(kind));
+                await _installer.EnsureMySqlInitializedAsync(effectiveDir, settings);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
+                var configPath = PlatformHelper.ResolveMySqlStyleConfigPath(dataDir);
                 var psi = CreateBasePsi(exe, Path.GetDirectoryName(exe)!);
                 psi.ArgumentList.Add($"--defaults-file={configPath}");
                 psi.ArgumentList.Add($"--port={port}");
@@ -293,10 +307,12 @@ public sealed class ProcessManagerService : IDisposable
 
             case ServiceKind.PostgreSql:
             {
-                await _installer.EnsurePostgreSqlInitializedAsync(installDir, settings);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
-                var dataDir = settings.GetDataDirectory(kind);
+                await _installer.EnsurePostgreSqlInitializedAsync(effectiveDir, settings);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
                 var psi = CreateBasePsi(exe, Path.GetDirectoryName(exe)!);
+                psi.Environment["LC_MESSAGES"] = "C";
                 psi.ArgumentList.Add("-D"); psi.ArgumentList.Add(dataDir);
                 psi.ArgumentList.Add("-h"); psi.ArgumentList.Add("127.0.0.1");
                 psi.ArgumentList.Add("-p"); psi.ArgumentList.Add(port.ToString());
@@ -306,8 +322,9 @@ public sealed class ProcessManagerService : IDisposable
             case ServiceKind.MongoDb:
             {
                 InstallerService.EnsureMongoDbInitialized(settings);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
-                var dataDir = settings.GetDataDirectory(kind);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
                 var cfg = Path.Combine(dataDir, "mongod.cfg");
                 var psi = CreateBasePsi(exe, Path.GetDirectoryName(exe)!);
                 psi.ArgumentList.Add("--config"); psi.ArgumentList.Add(cfg);
@@ -317,29 +334,59 @@ public sealed class ProcessManagerService : IDisposable
             case ServiceKind.Redis:
             {
                 InstallerService.EnsureRedisInitialized(settings);
-                var exe = InstallerService.FindServiceExecutable(kind, installDir)!;
-                var dataDir = settings.GetDataDirectory(kind);
+                var exe = InstallerService.FindServiceExecutable(kind, effectiveDir)!;
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
                 var conf = Path.Combine(dataDir, "redis.conf");
-                var psi = CreateBasePsi(exe, Path.GetDirectoryName(exe)!);
+                var psi = CreateBasePsi(exe, dataDir);
                 psi.ArgumentList.Add(conf);
                 return psi;
             }
 
             case ServiceKind.Cassandra:
             {
-                var javaExe = await _installer.EnsurePortableJavaIfMissingAsync(settings, null, CancellationToken.None);
+                var javaExe = PlatformHelper.EnsureWindowsSafePath(
+                    await _installer.EnsurePortableJavaIfMissingAsync(settings, null, CancellationToken.None),
+                    settings.BaseDirectory);
                 _installer.EnsureCassandraInitialized(effectiveDir, settings);
                 var confDir = Path.Combine(effectiveDir, "conf");
                 var libDir = Path.Combine(effectiveDir, "lib");
-                var dataDir = settings.GetDataDirectory(kind);
+                var dataDir = PlatformHelper.EnsureWindowsSafePath(
+                    settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
+                var logDir = Path.Combine(dataDir, "logs");
+                Directory.CreateDirectory(logDir);
                 var cp = string.Join(Path.PathSeparator, new[] { confDir }.Concat(Directory.GetFiles(libDir, "*.jar")));
 
                 var psi = CreateBasePsi(javaExe, effectiveDir);
                 psi.ArgumentList.Add("-Xms256M");
                 psi.ArgumentList.Add("-Xmx512M");
+                // Required module opens/exports for Apache Cassandra on Java 17
+                psi.ArgumentList.Add("--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.base/jdk.internal.ref=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.base/sun.nio.ch=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.rmi/sun.rmi.registry=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.rmi/sun.rmi.server=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-exports=java.sql/java.sql=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.lang.module=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.loader=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.reflect=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.math=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.module=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/jdk.internal.util.jar=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.io=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.lang=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.nio=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.util=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.util.concurrent=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED");
+                psi.ArgumentList.Add("--add-opens=java.base/sun.nio.ch=ALL-UNNAMED");
                 psi.ArgumentList.Add("-Dcassandra.foreground=yes");
-                psi.ArgumentList.Add($"-Dcassandra.storagedir={dataDir}");
                 psi.ArgumentList.Add("-Dcassandra-foreground=yes");
+                psi.ArgumentList.Add($"-Dcassandra.storagedir={dataDir}");
+                psi.ArgumentList.Add($"-Dcassandra.logdir={logDir}");
                 psi.ArgumentList.Add($"-Dlogback.configurationFile={Path.Combine(confDir, "logback.xml")}");
                 psi.ArgumentList.Add("-cp"); psi.ArgumentList.Add(cp);
                 psi.ArgumentList.Add("org.apache.cassandra.service.CassandraDaemon");
@@ -363,7 +410,14 @@ public sealed class ProcessManagerService : IDisposable
                 return false;
             }
 
-            var exit = await RunSimpleProcessAsync(localDbExe, "start BEStart");
+            var (exit, output) = await RunSimpleProcessWithOutputAsync(localDbExe, "start BEStart");
+            if (exit != 0)
+            {
+                // Ensure BEStart LocalDB instance exists before retrying start
+                await RunSimpleProcessWithOutputAsync(localDbExe, "create BEStart");
+                (exit, output) = await RunSimpleProcessWithOutputAsync(localDbExe, "start BEStart");
+            }
+
             if (exit == 0)
             {
                 _externalRunning.Add(ServiceKind.SqlServer);
@@ -372,14 +426,14 @@ public sealed class ProcessManagerService : IDisposable
                 return true;
             }
 
-            _log.Error("SQLServer", $"Falha ao iniciar SqlLocalDB (código {exit}).");
+            _log.Error("SQLServer", $"Falha ao iniciar SqlLocalDB (código {exit}): {output}");
             StateChanged?.Invoke(ServiceKind.SqlServer, ServiceState.Error, null);
             return false;
         }
 
         // Express Windows Service
-        var svcExit = await RunSimpleProcessAsync("sc.exe", "start MSSQL$BESTART");
-        if (svcExit == 0)
+        var (svcExit, svcOutput) = await RunSimpleProcessWithOutputAsync("sc.exe", "start MSSQL$BESTART");
+        if (svcExit == 0 || svcExit == 1056) // 1056 = service already running
         {
             _externalRunning.Add(ServiceKind.SqlServer);
             _log.Success("SQLServer", $"SQL Server Express rodando em 127.0.0.1:{settings.GetPort(ServiceKind.SqlServer)}.");
@@ -387,7 +441,7 @@ public sealed class ProcessManagerService : IDisposable
             return true;
         }
 
-        _log.Error("SQLServer", $"Falha ao iniciar serviço MSSQL$BESTART (código {svcExit}).");
+        _log.Error("SQLServer", $"Falha ao iniciar serviço MSSQL$BESTART (código {svcExit}): {svcOutput}");
         StateChanged?.Invoke(ServiceKind.SqlServer, ServiceState.Error, null);
         return false;
     }
@@ -418,7 +472,8 @@ public sealed class ProcessManagerService : IDisposable
     {
         var version = settings.GetActiveVersion(kind);
         if (string.IsNullOrWhiteSpace(version)) return;
-        var dir = settings.GetInstallDirectory(kind, version);
+        var dir = PlatformHelper.EnsureWindowsSafePath(
+            settings.GetInstallDirectory(kind, version), settings.BaseDirectory, isDirectory: true);
         var port = settings.GetPort(kind);
 
         switch (kind)
@@ -441,7 +496,11 @@ public sealed class ProcessManagerService : IDisposable
             {
                 var pgCtl = InstallerService.FindServiceTool(kind, dir, "pg_ctl");
                 if (pgCtl is not null)
-                    await RunSimpleProcessAsync(pgCtl, $"-D \"{settings.GetDataDirectory(kind)}\" stop -m fast");
+                {
+                    var safeDataDir = PlatformHelper.EnsureWindowsSafePath(
+                        settings.GetDataDirectory(kind), settings.BaseDirectory, isDirectory: true);
+                    await RunSimpleProcessAsync(pgCtl, $"-D \"{safeDataDir}\" stop -m fast");
+                }
                 break;
             }
             case ServiceKind.Redis:
@@ -468,6 +527,12 @@ public sealed class ProcessManagerService : IDisposable
 
     private static async Task<int> RunSimpleProcessAsync(string exe, string args)
     {
+        var (exitCode, _) = await RunSimpleProcessWithOutputAsync(exe, args);
+        return exitCode;
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunSimpleProcessWithOutputAsync(string exe, string args)
+    {
         try
         {
             using var proc = Process.Start(new ProcessStartInfo
@@ -479,14 +544,18 @@ public sealed class ProcessManagerService : IDisposable
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             });
-            if (proc is null) return -1;
-            using var cts = new CancellationTokenSource(4500);
+            if (proc is null) return (-1, "");
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            using var cts = new CancellationTokenSource(8000);
             await proc.WaitForExitAsync(cts.Token);
-            return proc.ExitCode;
+            var stderr = (await stderrTask).Trim();
+            var stdout = (await stdoutTask).Trim();
+            return (proc.ExitCode, !string.IsNullOrWhiteSpace(stderr) ? stderr : stdout);
         }
-        catch
+        catch (Exception ex)
         {
-            return -1;
+            return (-1, ex.Message);
         }
     }
 
